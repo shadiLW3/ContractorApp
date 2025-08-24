@@ -60,28 +60,24 @@ export default function ProfileSetupScreen({ navigation, selectedRole, selectedS
                    `${selectedSpecialization} Technician`,
         ...(selectedRole === 'Tech' && { specialization: selectedSpecialization })
       };
-
       await setDoc(doc(db, 'users', auth.currentUser.uid), userProfile);
-      
-      Alert.alert(
-        'Welcome!', 
-        `Welcome ${firstName}! Your account has been set up successfully.`,
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              // The App.js auth listener will detect the profile and navigate automatically
-              // Just reset the navigation state
-              
-            }
-          }
-        ]
-      );
-    } catch (error) {
-      Alert.alert('Error', 'Failed to save profile: ' + error.message);
       setLoading(false);
-    }
-  };
+      console.log('Profile saved successfully');
+      
+      // Force navigation based on role
+      if (selectedRole === 'GC') {
+        navigation.replace('GCDashboard');
+      } else if (selectedRole === 'Sub') {
+        navigation.replace('SubDashboard');
+      } else if (selectedRole === 'Tech') {
+        navigation.replace('TechDashboard');
+      }
+      
+      } catch (error) {
+        Alert.alert('Error', 'Failed to save profile: ' + error.message);
+        setLoading(false);
+      }
+      };
 
   return (
     <KeyboardAvoidingView 
