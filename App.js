@@ -40,6 +40,7 @@ export default function App() {
       } else {
         setUser(null);
         setUserProfile(null);
+        setLoading(false);
       }
       setLoading(false);
     });
