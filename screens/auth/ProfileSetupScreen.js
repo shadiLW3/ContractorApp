@@ -65,13 +65,7 @@ export default function ProfileSetupScreen({ navigation, selectedRole, selectedS
       console.log('Profile saved successfully');
       
       // Force navigation based on role
-      if (selectedRole === 'GC') {
-        navigation.replace('GCDashboard');
-      } else if (selectedRole === 'Sub') {
-        navigation.replace('SubDashboard');
-      } else if (selectedRole === 'Tech') {
-        navigation.replace('TechDashboard');
-      }
+      Alert.alert('Success', 'Profile created! Please wait...');
       
       } catch (error) {
         Alert.alert('Error', 'Failed to save profile: ' + error.message);

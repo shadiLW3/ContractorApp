@@ -13,6 +13,8 @@ import RoleSelectionScreen from './screens/auth/RoleSelectionScreen';
 import ProfileSetupScreen from './screens/auth/ProfileSetupScreen';
 import GCDashboard from './screens/dashboards/GCDashboard';
 import CreateProjectScreen from './screens/projects/CreateProjectScreen';
+import SubDashboard from './screens/dashboards/SubDashboard';
+import TechDashboard from './screens/dashboards/TechDashboard';
 
 const Stack = createStackNavigator();
 
@@ -141,7 +143,7 @@ export default function App() {
             {userProfile?.role === 'Sub' && (
               <Stack.Screen 
                 name="SubDashboard" 
-                component={SubDashboardPlaceholder}
+                component={SubDashboard}
                 options={{ 
                   title: 'Subcontractor Dashboard',
                   headerLeft: null
@@ -152,7 +154,7 @@ export default function App() {
             {userProfile?.role === 'Tech' && (
               <Stack.Screen 
                 name="TechDashboard" 
-                component={TechDashboardPlaceholder}
+                component={TechDashboard}
                 options={{ 
                   title: 'Technician Dashboard',
                   headerLeft: null
@@ -167,55 +169,6 @@ export default function App() {
   );
 }
 
-// Temporary placeholder components - replace with actual screens later
-function ProjectListPlaceholder({ navigation }) {
-  return (
-    <View style={styles.placeholderContainer}>
-      <Text style={styles.placeholderText}>Project List Screen</Text>
-      <Text style={styles.placeholderSubtext}>Coming Soon</Text>
-    </View>
-  );
-}
-
-function SubDashboardPlaceholder({ navigation }) {
-  const handleSignOut = async () => {
-    try {
-      await signOut(auth);
-    } catch (error) {
-      console.error('Error signing out:', error);
-    }
-  };
-
-  return (
-    <View style={styles.placeholderContainer}>
-      <Text style={styles.placeholderText}>Subcontractor Dashboard</Text>
-      <Text style={styles.placeholderSubtext}>Coming Soon</Text>
-      <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
-        <Text style={styles.signOutText}>Sign Out</Text>
-      </TouchableOpacity>
-    </View>
-  );
-}
-
-function TechDashboardPlaceholder({ navigation }) {
-  const handleSignOut = async () => {
-    try {
-      await signOut(auth);
-    } catch (error) {
-      console.error('Error signing out:', error);
-    }
-  };
-
-  return (
-    <View style={styles.placeholderContainer}>
-      <Text style={styles.placeholderText}>Technician Dashboard</Text>
-      <Text style={styles.placeholderSubtext}>Coming Soon</Text>
-      <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
-        <Text style={styles.signOutText}>Sign Out</Text>
-      </TouchableOpacity>
-    </View>
-  );
-}
 
 const styles = StyleSheet.create({
   loadingContainer: {
