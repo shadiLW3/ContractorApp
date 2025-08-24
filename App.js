@@ -15,6 +15,7 @@ import GCDashboard from './screens/dashboards/GCDashboard';
 import CreateProjectScreen from './screens/projects/CreateProjectScreen';
 import SubDashboard from './screens/dashboards/SubDashboard';
 import TechDashboard from './screens/dashboards/TechDashboard';
+import ProjectListScreen from './screens/projects/ProjectListScreen';
 
 const Stack = createStackNavigator();
 
@@ -133,7 +134,7 @@ export default function App() {
                 />
                 <Stack.Screen 
                   name="ProjectList" 
-                  component={ProjectListPlaceholder}
+                  component={ProjectListScreen}
                   options={{ 
                     title: 'My Projects',
                   }}
@@ -142,26 +143,37 @@ export default function App() {
             )}
             
             {userProfile?.role === 'Sub' && (
-              <Stack.Screen 
-                name="SubDashboard" 
-                component={SubDashboard}
-                options={{ 
-                  title: 'Subcontractor Dashboard',
-                  headerLeft: null
-                }}
-              />
-            )}
+  <>
+    <Stack.Screen 
+      name="SubDashboard" 
+      component={SubDashboard}
+      options={{ 
+        title: 'Subcontractor Dashboard',
+        headerLeft: null
+      }}
+    />
+    <Stack.Screen
+      name="ProjectList"
+      component={ProjectListScreen}
+      options={{ title: 'My Projects' }}  // DOUBLE BRACES!
+    />
+  </>
+)}
             
             {userProfile?.role === 'Tech' && (
-              <Stack.Screen 
-                name="TechDashboard" 
-                component={TechDashboard}
-                options={{ 
-                  title: 'Technician Dashboard',
-                  headerLeft: null
-                }}
-              />
-            )}
+  <>
+    <Stack.Screen 
+      name="TechDashboard" 
+      component={TechDashboard}
+      options={{ title: 'Technician Dashboard', headerLeft: null }}
+    />
+    <Stack.Screen 
+      name="ProjectList" 
+      component={ProjectListScreen}  // ADD THIS
+      options={{ title: 'My Projects' }}
+    />
+  </>
+)}
           </>
         )}
       </Stack.Navigator>
