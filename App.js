@@ -16,6 +16,7 @@ import CreateProjectScreen from './screens/projects/CreateProjectScreen';
 import SubDashboard from './screens/dashboards/SubDashboard';
 import TechDashboard from './screens/dashboards/TechDashboard';
 import ProjectListScreen from './screens/projects/ProjectListScreen';
+import ProjectDetailsScreen from './screens/projects/ProjectDetailsScreen';
 
 const Stack = createStackNavigator();
 
@@ -139,6 +140,11 @@ export default function App() {
                     title: 'My Projects',
                   }}
                 />
+                <Stack.Screen 
+                name="ProjectDetails" 
+                component={ProjectDetailsScreen}
+                options={{ title: 'Project' }}
+              />
               </>
             )}
             
@@ -157,6 +163,11 @@ export default function App() {
       component={ProjectListScreen}
       options={{ title: 'My Projects' }}  // DOUBLE BRACES!
     />
+    <Stack.Screen 
+  name="ProjectDetails" 
+  component={ProjectDetailsScreen}
+  options={{ title: 'Project' }}
+/>
   </>
 )}
             
@@ -172,6 +183,11 @@ export default function App() {
       component={ProjectListScreen}  // ADD THIS
       options={{ title: 'My Projects' }}
     />
+    <Stack.Screen 
+  name="ProjectDetails" 
+  component={ProjectDetailsScreen}
+  options={{ title: 'Project' }}
+/>
   </>
 )}
           </>
