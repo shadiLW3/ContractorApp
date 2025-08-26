@@ -1005,20 +1005,27 @@ const styles = StyleSheet.create({
   inputContainer: {
     flexDirection: 'row',
     padding: 10,
+    paddingBottom: Platform.OS === 'ios' ? 25 : 10,  // ADD EXTRA BOTTOM PADDING FOR iPHONE
     backgroundColor: 'white',
     borderTopWidth: 1,
     borderTopColor: '#e0e0e0',
+    alignItems: 'center',                            // ADD THIS TO CENTER ITEMS
   },
+  
   textInput: {
     flex: 1,
     borderWidth: 1,
     borderColor: '#ddd',
     borderRadius: 20,
     paddingHorizontal: 15,
-    paddingVertical: 8,
+    paddingVertical: Platform.OS === 'ios' ? 12 : 10,  // INCREASED PADDING
+    paddingTop: Platform.OS === 'ios' ? 12 : 10,      // EXPLICIT TOP PADDING
     marginRight: 10,
+    minHeight: 40,                                     // ADD MINIMUM HEIGHT
     maxHeight: 100,
     fontSize: 16,
+    lineHeight: Platform.OS === 'ios' ? 20 : 18,      // ADD LINE HEIGHT
+    textAlignVertical: 'center',                       // CENTER TEXT ON ANDROID
   },
   sendButton: {
     backgroundColor: '#007AFF',
