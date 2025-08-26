@@ -60,18 +60,36 @@ export default function ProfileSetupScreen({ navigation, selectedRole, selectedS
                    `${selectedSpecialization} Technician`,
         ...(selectedRole === 'Tech' && { specialization: selectedSpecialization })
       };
+      
       await setDoc(doc(db, 'users', auth.currentUser.uid), userProfile);
-      setLoading(false);
+      
       console.log('Profile saved successfully');
       
-      // Force navigation based on role
-      Alert.alert('Success', 'Profile created! Please wait...');
-      
-      } catch (error) {
-        Alert.alert('Error', 'Failed to save profile: ' + error.message);
-        setLoading(false);
+      // Navigate to the appropriate dashboard based on role
+      // The navigation stack will be replaced once profile is detected
+      // But we help it along by navigating directly
+      if (selectedRole === 'GC') {
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'GCDashboard' }],
+        });
+      } else if (selectedRole === 'Sub') {
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'SubDashboard' }],
+        });
+      } else if (selectedRole === 'Tech') {
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'TechDashboard' }],
+        });
       }
-      };
+      
+    } catch (error) {
+      Alert.alert('Error', 'Failed to save profile: ' + error.message);
+      setLoading(false);
+    }
+  };
 
   return (
     <KeyboardAvoidingView 
