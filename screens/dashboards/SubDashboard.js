@@ -66,6 +66,7 @@ export default function SubDashboard({ navigation }) {
             // TODO: Update invitation status in database
             Alert.alert('Success', `Invitation ${accept ? 'accepted' : 'declined'}`);
             fetchUserData(); // Refresh
+            navigation.navigate('ProjectDetails', { projectId: invitation.projectId });
           }
         }
       ]

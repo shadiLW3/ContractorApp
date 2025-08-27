@@ -167,21 +167,37 @@ export default function CreateProjectScreen({ navigation }) {
         type: 'system' // system, text, image, etc.
       });
 
-      // Send invitations (in production, you'd send push notifications or emails here)
-      // For now, we'll create invitation documents
-      for (const sub of selectedSubs) {
-        await addDoc(collection(db, 'invitations'), {
-          projectId: docRef.id,
-          projectName: projectName,
-          fromUserId: auth.currentUser.uid,
-          fromUserName: currentUser?.firstName || '',
-          fromCompany: currentUser?.companyName || '',
-          toUserId: sub.id,
-          toUserName: sub.firstName,
-          status: 'pending',
-          createdAt: new Date().toISOString()
-        });
-      }
+ // In CreateProjectScreen.js, find this section (around line 140-155):
+// Look for the comment "// Send invitations"
+// REPLACE the entire for loop with this:
+
+// Send invitations (in production, you'd send push notifications or emails here)
+// For now, we'll create invitation documents
+for (const sub of selectedSubs) {
+    await addDoc(collection(db, 'invitations'), {
+      // Project info
+      projectId: docRef.id,
+      projectName: projectName,
+      
+      // FROM user (GC who is inviting)
+      inviterId: auth.currentUser.uid,
+      inviterName: currentUser?.firstName || '',
+      inviterCompany: currentUser?.companyName || '',
+      
+      // TO user (Sub being invited) - THESE ARE THE KEY CHANGES
+      recipientId: sub.id,  // CHANGED from toUserId to recipientId
+      recipientName: sub.firstName,  // CHANGED from toUserName to recipientName
+      recipientEmail: sub.email,
+      
+      // Role and status
+      role: 'Subcontractor',  // ADDED THIS FIELD
+      status: 'pending',
+      createdAt: new Date(),  // Changed to Date object instead of string
+      
+      // Optional message
+      message: `You're invited to join ${projectName} project`  // ADDED THIS
+    });
+  }
 
       Alert.alert(
         'Success!', 

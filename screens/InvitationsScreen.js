@@ -19,7 +19,9 @@ import {
   updateDoc,
   deleteDoc,
   onSnapshot,
-  Timestamp
+  Timestamp,
+  getDoc,      // ADD THIS
+  addDoc       // ADD THIS
 } from 'firebase/firestore';
 
 export default function InvitationsScreen({ navigation }) {
@@ -91,15 +93,35 @@ export default function InvitationsScreen({ navigation }) {
                 respondedAt: Timestamp.now()
               });
 
-              // Add user to project members
+              // Get the project document
               const projectRef = doc(db, 'projects', invitation.projectId);
-              await updateDoc(projectRef, {
-                [`members.${auth.currentUser.uid}`]: {
-                  role: invitation.role,
-                  name: invitation.recipientName,
-                  joinedAt: Timestamp.now()
-                }
-              });
+              const projectDoc = await getDoc(projectRef);
+              
+              if (projectDoc.exists()) {
+                const projectData = projectDoc.data();
+                
+                // Update the invitedSubs array to change status from pending to accepted
+                const updatedSubs = projectData.invitedSubs.map(sub => {
+                  if (sub.id === auth.currentUser.uid) {
+                    return { ...sub, status: 'accepted' };
+                  }
+                  return sub;
+                });
+                
+                // Update the project with the new status
+                await updateDoc(projectRef, {
+                  invitedSubs: updatedSubs
+                });
+                
+                // Add a system message to the project chat
+                await addDoc(collection(db, 'projects', invitation.projectId, 'messages'), {
+                  text: `${invitation.recipientName} has joined the project`,
+                  userId: 'system',
+                  userName: 'System',
+                  timestamp: new Date().toISOString(),
+                  type: 'system'
+                });
+              }
 
               Alert.alert('Success', 'You have joined the project!');
               loadInvitations();
@@ -127,10 +149,32 @@ export default function InvitationsScreen({ navigation }) {
           onPress: async () => {
             setProcessingId(invitation.id);
             try {
+              // Update invitation status
               await updateDoc(doc(db, 'invitations', invitation.id), {
                 status: 'declined',
                 respondedAt: Timestamp.now()
               });
+              
+              // Get the project document
+              const projectRef = doc(db, 'projects', invitation.projectId);
+              const projectDoc = await getDoc(projectRef);
+              
+              if (projectDoc.exists()) {
+                const projectData = projectDoc.data();
+                
+                // Update the invitedSubs array to change status from pending to declined
+                const updatedSubs = projectData.invitedSubs.map(sub => {
+                  if (sub.id === auth.currentUser.uid) {
+                    return { ...sub, status: 'declined' };
+                  }
+                  return sub;
+                });
+                
+                // Update the project with the new status
+                await updateDoc(projectRef, {
+                  invitedSubs: updatedSubs
+                });
+              }
               
               Alert.alert('Invitation Declined');
               loadInvitations();
