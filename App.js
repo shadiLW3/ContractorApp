@@ -7,6 +7,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from './firebaseConfig';
 import { View, Text, ActivityIndicator, StyleSheet, TouchableOpacity } from 'react-native';
 import { onSnapshot } from 'firebase/firestore';
+import Toast from 'react-native-toast-message';
 
 // Import all screens
 import LoginScreen from './screens/auth/LoginScreen';
@@ -72,159 +73,159 @@ export default function App() {
 
   return (
     <NavigationContainer>
-  <Stack.Navigator
-    screenOptions={{
-      headerStyle: {
-        backgroundColor: '#FF6B35',
-      },
-      headerTintColor: '#fff',
-      headerTitleStyle: {
-        fontWeight: 'bold',
-      },
-    }}
-  >
-    {user === null ? (
-      // Not logged in - show login screen
-      <Stack.Screen 
-        name="Login" 
-        component={LoginScreen}
-        options={{ headerShown: false }}
-      />
-    ) : userProfile === null ? (
-      // Logged in but needs to complete profile
-      <>
-        <Stack.Screen 
-          name="RoleSelection"
-          options={{ 
-            title: 'Choose Your Role',
-            headerLeft: null // Prevent going back
-          }}
-        >
-          {(props) => (
-            <RoleSelectionScreen 
-              {...props} 
-              setSelectedRole={setSelectedRole}
-              setSelectedSpecialization={setSelectedSpecialization}
-            />
-          )}
-        </Stack.Screen>
-        <Stack.Screen 
-          name="ProfileSetup"
-          options={{ 
-            title: 'Complete Your Profile',
-            headerLeft: null // Prevent going back
-          }}
-        >
-          {(props) => (
-            <ProfileSetupScreen 
-              {...props}
-              selectedRole={selectedRole}
-              selectedSpecialization={selectedSpecialization}
-            />
-          )}
-        </Stack.Screen>
-      </>
-    ) : (
-      // Logged in with complete profile - show role-based dashboards
-      <>
-        {userProfile?.role === 'GC' && (
+      <Stack.Navigator
+        screenOptions={{
+          headerStyle: {
+            backgroundColor: '#FF6B35',
+          },
+          headerTintColor: '#fff',
+          headerTitleStyle: {
+            fontWeight: 'bold',
+          },
+        }}
+      >
+        {user === null ? (
+          // Not logged in - show login screen
+          <Stack.Screen 
+            name="Login" 
+            component={LoginScreen}
+            options={{ headerShown: false }}
+          />
+        ) : userProfile === null ? (
+          // Logged in but needs to complete profile
           <>
             <Stack.Screen 
-              name="GCDashboard" 
-              component={GCDashboard}
+              name="RoleSelection"
               options={{ 
-                title: 'GC Dashboard',
-                headerLeft: null
+                title: 'Choose Your Role',
+                headerLeft: null // Prevent going back
               }}
-            />
+            >
+              {(props) => (
+                <RoleSelectionScreen 
+                  {...props} 
+                  setSelectedRole={setSelectedRole}
+                  setSelectedSpecialization={setSelectedSpecialization}
+                />
+              )}
+            </Stack.Screen>
             <Stack.Screen 
-              name="CreateProject" 
-              component={CreateProjectScreen}
-              options={{ title: 'New Project' }}
-            />
+              name="ProfileSetup"
+              options={{ 
+                title: 'Complete Your Profile',
+                headerLeft: null // Prevent going back
+              }}
+            >
+              {(props) => (
+                <ProfileSetupScreen 
+                  {...props}
+                  selectedRole={selectedRole}
+                  selectedSpecialization={selectedSpecialization}
+                />
+              )}
+            </Stack.Screen>
+          </>
+        ) : (
+          // Logged in with complete profile - show role-based dashboards
+          <>
+            {userProfile?.role === 'GC' && (
+              <>
+                <Stack.Screen 
+                  name="GCDashboard" 
+                  component={GCDashboard}
+                  options={{ 
+                    title: 'GC Dashboard',
+                    headerLeft: null
+                  }}
+                />
+                <Stack.Screen 
+                  name="CreateProject" 
+                  component={CreateProjectScreen}
+                  options={{ title: 'New Project' }}
+                />
+                <Stack.Screen 
+                  name="ProjectList" 
+                  component={ProjectListScreen}
+                  options={{ title: 'My Projects' }}
+                />
+                <Stack.Screen 
+                  name="ProjectDetails" 
+                  component={ProjectDetailsScreen}
+                  options={{ title: 'Project' }}
+                />
+                <Stack.Screen 
+                  name="Network" 
+                  component={NetworkScreen}
+                  options={{ title: 'My Network' }}
+                />
+              </>
+            )}
+            
+            {userProfile?.role === 'Sub' && (
+              <>
+                <Stack.Screen 
+                  name="SubDashboard" 
+                  component={SubDashboard}
+                  options={{ 
+                    title: 'Subcontractor Dashboard',
+                    headerLeft: null
+                  }}
+                />
+                <Stack.Screen
+                  name="ProjectList"
+                  component={ProjectListScreen}
+                  options={{ title: 'My Projects' }}
+                />
+                <Stack.Screen 
+                  name="ProjectDetails" 
+                  component={ProjectDetailsScreen}
+                  options={{ title: 'Project' }}
+                />
+                <Stack.Screen 
+                  name="TeamManagement" 
+                  component={TeamManagementScreen}
+                  options={{ title: 'Team Management' }}
+                />
+              </>
+            )}
+            
+            {userProfile?.role === 'Tech' && (
+              <>
+                <Stack.Screen 
+                  name="TechDashboard" 
+                  component={TechDashboard}
+                  options={{ 
+                    title: 'Technician Dashboard', 
+                    headerLeft: null 
+                  }}
+                />
+                <Stack.Screen 
+                  name="ProjectList" 
+                  component={ProjectListScreen}
+                  options={{ title: 'My Projects' }}
+                />
+                <Stack.Screen 
+                  name="ProjectDetails" 
+                  component={ProjectDetailsScreen}
+                  options={{ title: 'Project' }}
+                />
+              </>
+            )}
+            
+            {/* Universal screen for ALL roles */}
             <Stack.Screen 
-              name="ProjectList" 
-              component={ProjectListScreen}
-              options={{ title: 'My Projects' }}
-            />
-            <Stack.Screen 
-              name="ProjectDetails" 
-              component={ProjectDetailsScreen}
-              options={{ title: 'Project' }}
-            />
-            <Stack.Screen 
-              name="Network" 
-              component={NetworkScreen}
-              options={{ title: 'My Network' }}
+              name="Invitations" 
+              component={InvitationsScreen}
+              options={{ title: 'Invitations' }}
             />
           </>
         )}
-        
-        {userProfile?.role === 'Sub' && (
-          <>
-            <Stack.Screen 
-              name="SubDashboard" 
-              component={SubDashboard}
-              options={{ 
-                title: 'Subcontractor Dashboard',
-                headerLeft: null
-              }}
-            />
-            <Stack.Screen
-              name="ProjectList"
-              component={ProjectListScreen}
-              options={{ title: 'My Projects' }}
-            />
-            <Stack.Screen 
-              name="ProjectDetails" 
-              component={ProjectDetailsScreen}
-              options={{ title: 'Project' }}
-            />
-            <Stack.Screen 
-              name="TeamManagement" 
-              component={TeamManagementScreen}
-              options={{ title: 'Team Management' }}
-            />
-          </>
-        )}
-        
-        {userProfile?.role === 'Tech' && (
-          <>
-            <Stack.Screen 
-              name="TechDashboard" 
-              component={TechDashboard}
-              options={{ 
-                title: 'Technician Dashboard', 
-                headerLeft: null 
-              }}
-            />
-            <Stack.Screen 
-              name="ProjectList" 
-              component={ProjectListScreen}
-              options={{ title: 'My Projects' }}
-            />
-            <Stack.Screen 
-              name="ProjectDetails" 
-              component={ProjectDetailsScreen}
-              options={{ title: 'Project' }}
-            />
-          </>
-        )}
-        
-        {/* Universal screen for ALL roles */}
-        <Stack.Screen 
-          name="Invitations" 
-          component={InvitationsScreen}
-          options={{ title: 'Invitations' }}
-        />
-      </>
-    )}
-  </Stack.Navigator>
-  <StatusBar style="auto" />
-</NavigationContainer>
+      </Stack.Navigator>
+      <StatusBar style="auto" />
+      <Toast />
+    </NavigationContainer>
   );
 }
-
 
 const styles = StyleSheet.create({
   loadingContainer: {

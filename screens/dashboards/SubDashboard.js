@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import Toast from 'react-native-toast-message';
 import {
   View,
   Text,
@@ -15,7 +16,7 @@ export default function SubDashboard({ navigation }) {
   const [userProfile, setUserProfile] = useState(null);
   const [invitations, setInvitations] = useState([]);
   const [loading, setLoading] = useState(true);
-
+  
   useEffect(() => {
     fetchUserData();
   }, []);
@@ -64,7 +65,12 @@ export default function SubDashboard({ navigation }) {
           text: 'Confirm',
           onPress: () => {
             // TODO: Update invitation status in database
-            Alert.alert('Success', `Invitation ${accept ? 'accepted' : 'declined'}`);
+            Toast.show({
+              type: 'success',
+              text1: accept ? 'Joined Project! 🎉' : 'Invitation Declined',
+              position: 'top',
+              visibilityTime: 2000
+            });
             fetchUserData(); // Refresh
             navigation.navigate('ProjectDetails', { projectId: invite.projectId });
           }
