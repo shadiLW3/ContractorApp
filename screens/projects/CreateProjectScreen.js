@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import Toast from 'react-native-toast-message';
 import {
   View,
   Text,
@@ -199,13 +200,13 @@ for (const sub of selectedSubs) {
     });
   }
 
-      Alert.alert(
-        'Success!', 
-        `Project "${projectName}" created successfully!\n${selectedSubs.length} subcontractor(s) invited.`,
-        [
-          { text: 'OK', onPress: () => navigation.goBack() }
-        ]
-      );
+  Toast.show({
+    type: 'success',
+    text1: `Project ${projectName} Created! 🎉`,
+    text2: `${selectedSubs.length} subcontractor(s) invited`,
+    visibilityTime: 3000
+  });
+  navigation.goBack();
     } catch (error) {
       Alert.alert('Error', 'Failed to create project. Please try again.');
       console.error(error);

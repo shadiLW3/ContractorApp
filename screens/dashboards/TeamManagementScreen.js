@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import Toast from 'react-native-toast-message';
 import {
   View,
   Text,
@@ -97,7 +98,12 @@ export default function TeamManagementScreen({ navigation }) {
     setNewMemberEmail('');
     setNewMemberRole('Technician');
     
-    Alert.alert('Success', 'Team member added successfully');
+    Toast.show({
+      type: 'success',
+      text1: 'Team Member Added',
+      text2: newMemberName,
+      visibilityTime: 2000
+    });
   };
 
   const handleRemoveMember = (memberId, memberName) => {
@@ -111,7 +117,11 @@ export default function TeamManagementScreen({ navigation }) {
           style: 'destructive',
           onPress: () => {
             setTeamMembers(teamMembers.filter(m => m.id !== memberId));
-            Alert.alert('Success', 'Team member removed');
+            Toast.show({
+              type: 'success',
+              text1: 'Team Member Removed',
+              visibilityTime: 2000
+            });
           }
         }
       ]
