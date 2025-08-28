@@ -8,16 +8,30 @@ import {
   Alert
 } from 'react-native';
 import { auth, db } from '../../firebaseConfig';
-import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, onSnapshot } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
+import Toast from 'react-native-toast-message';
 
 export default function TechDashboard({ navigation }) {
   const [userProfile, setUserProfile] = useState(null);
-  const [invitations, setInvitations] = useState([]);
+  const [invitationCount, setInvitationCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchUserData();
+    
+    // Real-time listener for invitation count
+    const invitesQuery = query(
+      collection(db, 'invitations'),
+      where('recipientId', '==', auth.currentUser.uid),
+      where('status', '==', 'pending')
+    );
+    
+    const unsubscribe = onSnapshot(invitesQuery, (snapshot) => {
+      setInvitationCount(snapshot.size);
+    });
+
+    return () => unsubscribe();
   }, []);
 
   const fetchUserData = async () => {
@@ -27,19 +41,6 @@ export default function TechDashboard({ navigation }) {
       if (userDoc.exists()) {
         setUserProfile(userDoc.data());
       }
-
-      // Check for project invitations (we'll use this later)
-      const invitesQuery = query(
-        collection(db, 'invitations'),
-        where('toUserId', '==', auth.currentUser.uid),
-        where('status', '==', 'pending')
-      );
-      const invitesSnapshot = await getDocs(invitesQuery);
-      const invites = [];
-      invitesSnapshot.forEach((doc) => {
-        invites.push({ id: doc.id, ...doc.data() });
-      });
-      setInvitations(invites);
     } catch (error) {
       console.error('Error fetching data:', error);
     }
@@ -50,7 +51,12 @@ export default function TechDashboard({ navigation }) {
     try {
       await signOut(auth);
     } catch (error) {
-      Alert.alert('Error', 'Failed to sign out');
+      Toast.show({
+        type: 'error',
+        text1: 'Failed to sign out',
+        position: 'top',
+        visibilityTime: 3000
+      });
     }
   };
 
@@ -65,22 +71,32 @@ export default function TechDashboard({ navigation }) {
   return (
     <ScrollView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.welcomeText}>
-          Welcome back, {userProfile?.firstName}!
-        </Text>
-        <Text style={styles.roleText}>
-          {userProfile?.specialization || 'Technician'}
-        </Text>
-      </View>
-
-      {/* Invitations Section */}
-      {invitations.length > 0 && (
-        <View style={styles.invitationBanner}>
-          <Text style={styles.invitationText}>
-            You have {invitations.length} pending project invitation(s)
-          </Text>
+        <View style={styles.headerContent}>
+          <View style={styles.headerText}>
+            <Text style={styles.welcomeText}>
+              Welcome back, {userProfile?.firstName}!
+            </Text>
+            <Text style={styles.roleText}>
+              {userProfile?.specialization || 'Technician'}
+            </Text>
+          </View>
+          
+          {/* Invitation Badge */}
+          <TouchableOpacity 
+            style={styles.invitationBadgeButton}
+            onPress={() => navigation.navigate('Invitations')}
+          >
+            <Text style={styles.invitationIcon}>📮</Text>
+            {invitationCount > 0 && (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>
+                  {invitationCount > 9 ? '9+' : invitationCount}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
         </View>
-      )}
+      </View>
 
       <View style={styles.dashboardContainer}>
         <Text style={styles.sectionTitle}>My Work</Text>
@@ -190,6 +206,14 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: 20,
     marginBottom: 20,
   },
+  headerContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  headerText: {
+    flex: 1,
+  },
   welcomeText: {
     fontSize: 28,
     fontWeight: 'bold',
@@ -201,19 +225,31 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.9)',
     fontWeight: '600',
   },
-  invitationBanner: {
-    backgroundColor: '#FFF3CD',
-    borderLeftWidth: 4,
-    borderLeftColor: '#FFC107',
-    padding: 15,
-    marginHorizontal: 20,
-    marginBottom: 20,
-    borderRadius: 8,
+  invitationBadgeButton: {
+    position: 'relative',
+    padding: 8,
   },
-  invitationText: {
-    color: '#856404',
-    fontSize: 14,
-    fontWeight: '600',
+  invitationIcon: {
+    fontSize: 28,
+  },
+  badge: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    backgroundColor: '#FF3B30',
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#45B7D1',
+  },
+  badgeText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: 'bold',
+    paddingHorizontal: 4,
   },
   dashboardContainer: {
     padding: 20,

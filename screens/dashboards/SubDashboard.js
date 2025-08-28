@@ -9,16 +9,29 @@ import {
   Alert
 } from 'react-native';
 import { auth, db } from '../../firebaseConfig';
-import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, onSnapshot } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
 
 export default function SubDashboard({ navigation }) {
   const [userProfile, setUserProfile] = useState(null);
-  const [invitations, setInvitations] = useState([]);
+  const [invitationCount, setInvitationCount] = useState(0);
   const [loading, setLoading] = useState(true);
   
   useEffect(() => {
     fetchUserData();
+    
+    // Real-time listener for invitation count
+    const invitesQuery = query(
+      collection(db, 'invitations'),
+      where('recipientId', '==', auth.currentUser.uid),
+      where('status', '==', 'pending')
+    );
+    
+    const unsubscribe = onSnapshot(invitesQuery, (snapshot) => {
+      setInvitationCount(snapshot.size);
+    });
+
+    return () => unsubscribe();
   }, []);
 
   const fetchUserData = async () => {
@@ -28,19 +41,6 @@ export default function SubDashboard({ navigation }) {
       if (userDoc.exists()) {
         setUserProfile(userDoc.data());
       }
-
-      // Check for project invitations
-      const invitesQuery = query(
-        collection(db, 'invitations'),
-        where('toUserId', '==', auth.currentUser.uid),
-        where('status', '==', 'pending')
-      );
-      const invitesSnapshot = await getDocs(invitesQuery);
-      const invites = [];
-      invitesSnapshot.forEach((doc) => {
-        invites.push({ id: doc.id, ...doc.data() });
-      });
-      setInvitations(invites);
     } catch (error) {
       console.error('Error fetching data:', error);
     }
@@ -51,32 +51,13 @@ export default function SubDashboard({ navigation }) {
     try {
       await signOut(auth);
     } catch (error) {
-      Alert.alert('Error', 'Failed to sign out');
+      Toast.show({
+        type: 'error',
+        text1: 'Failed to sign out',
+        position: 'top',
+        visibilityTime: 3000
+      });
     }
-  };
-
-  const handleInvitation = (invite, accept) => {
-    Alert.alert(
-      accept ? 'Accept Invitation' : 'Decline Invitation',
-      `${accept ? 'Accept' : 'Decline'} invitation to ${invite.projectName}?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Confirm',
-          onPress: () => {
-            // TODO: Update invitation status in database
-            Toast.show({
-              type: 'success',
-              text1: accept ? 'Joined Project! 🎉' : 'Invitation Declined',
-              position: 'top',
-              visibilityTime: 2000
-            });
-            fetchUserData(); // Refresh
-            navigation.navigate('ProjectDetails', { projectId: invite.projectId });
-          }
-        }
-      ]
-    );
   };
 
   if (loading) {
@@ -90,45 +71,33 @@ export default function SubDashboard({ navigation }) {
   return (
     <ScrollView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.welcomeText}>
-          Welcome back, {userProfile?.firstName}!
-        </Text>
-        <Text style={styles.roleText}>Subcontractor</Text>
-        {userProfile?.companyName && (
-          <Text style={styles.companyText}>{userProfile.companyName}</Text>
-        )}
-      </View>
-
-      {/* Invitations Section */}
-      {invitations.length > 0 && (
-        <View style={styles.invitationsSection}>
-          <Text style={styles.sectionTitle}>Pending Invitations</Text>
-          {invitations.map((invite) => (
-            <View key={invite.id} style={styles.invitationCard}>
-              <View style={styles.inviteInfo}>
-                <Text style={styles.inviteProject}>{invite.projectName}</Text>
-                <Text style={styles.inviteFrom}>
-                  From: {invite.fromUserName} {invite.fromCompany && `(${invite.fromCompany})`}
+        <View style={styles.headerContent}>
+          <View style={styles.headerText}>
+            <Text style={styles.welcomeText}>
+              Welcome back, {userProfile?.firstName}!
+            </Text>
+            <Text style={styles.roleText}>Subcontractor</Text>
+            {userProfile?.companyName && (
+              <Text style={styles.companyText}>{userProfile.companyName}</Text>
+            )}
+          </View>
+          
+          {/* Invitation Badge */}
+          <TouchableOpacity 
+            style={styles.invitationBadgeButton}
+            onPress={() => navigation.navigate('Invitations')}
+          >
+            <Text style={styles.invitationIcon}>📮</Text>
+            {invitationCount > 0 && (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>
+                  {invitationCount > 9 ? '9+' : invitationCount}
                 </Text>
               </View>
-              <View style={styles.inviteActions}>
-                <TouchableOpacity 
-                  style={[styles.inviteButton, styles.acceptButton]}
-                  onPress={() => handleInvitation(invite, true)}
-                >
-                  <Text style={styles.acceptText}>✓</Text>
-                </TouchableOpacity>
-                <TouchableOpacity 
-                  style={[styles.inviteButton, styles.declineButton]}
-                  onPress={() => handleInvitation(invite, false)}
-                >
-                  <Text style={styles.declineText}>✗</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          ))}
+            )}
+          </TouchableOpacity>
         </View>
-      )}
+      </View>
 
       <View style={styles.dashboardContainer}>
         <Text style={styles.sectionTitle}>Project Management</Text>
@@ -163,7 +132,7 @@ export default function SubDashboard({ navigation }) {
 
         <TouchableOpacity 
           style={styles.dashboardButton}
-          onPress={() => Alert.alert('Coming Soon', 'This feature will be available soon!')}
+          onPress={() => navigation.navigate('TeamManagement')}
         >
           <View style={styles.buttonContent}>
             <Text style={styles.buttonIcon}>👥</Text>
@@ -238,6 +207,14 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: 20,
     marginBottom: 20,
   },
+  headerContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  headerText: {
+    flex: 1,
+  },
   welcomeText: {
     fontSize: 28,
     fontWeight: 'bold',
@@ -255,60 +232,31 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontStyle: 'italic',
   },
-  invitationsSection: {
-    padding: 20,
-    paddingBottom: 0,
+  invitationBadgeButton: {
+    position: 'relative',
+    padding: 8,
   },
-  invitationCard: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 15,
-    marginBottom: 12,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#FFC107',
+  invitationIcon: {
+    fontSize: 28,
   },
-  inviteInfo: {
-    flex: 1,
-  },
-  inviteProject: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 4,
-  },
-  inviteFrom: {
-    fontSize: 13,
-    color: '#666',
-  },
-  inviteActions: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  inviteButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+  badge: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    backgroundColor: '#FF3B30',
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#4ECDC4',
   },
-  acceptButton: {
-    backgroundColor: '#4CAF50',
-  },
-  declineButton: {
-    backgroundColor: '#F44336',
-  },
-  acceptText: {
+  badgeText: {
     color: 'white',
-    fontSize: 20,
+    fontSize: 12,
     fontWeight: 'bold',
-  },
-  declineText: {
-    color: 'white',
-    fontSize: 20,
-    fontWeight: 'bold',
+    paddingHorizontal: 4,
   },
   dashboardContainer: {
     padding: 20,
