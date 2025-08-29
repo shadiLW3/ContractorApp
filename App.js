@@ -8,6 +8,7 @@ import { auth, db } from './firebaseConfig';
 import { View, Text, ActivityIndicator, StyleSheet, TouchableOpacity } from 'react-native';
 import { onSnapshot } from 'firebase/firestore';
 import Toast from 'react-native-toast-message';
+import CalendarScreen from './screens/CalendarScreen';
 
 // Import all screens
 import LoginScreen from './screens/auth/LoginScreen';
@@ -158,6 +159,11 @@ export default function App() {
                   component={NetworkScreen}
                   options={{ title: 'My Network' }}
                 />
+                <Stack.Screen 
+  name="Calendar" 
+  component={CalendarScreen}
+  options={{ title: 'Schedule' }}
+/>
               </>
             )}
             
@@ -186,6 +192,11 @@ export default function App() {
                   component={TeamManagementScreen}
                   options={{ title: 'Team Management' }}
                 />
+                <Stack.Screen 
+  name="Calendar" 
+  component={CalendarScreen}
+  options={{ title: 'Schedule' }}
+/>
               </>
             )}
             
@@ -209,6 +220,11 @@ export default function App() {
                   component={ProjectDetailsScreen}
                   options={{ title: 'Project' }}
                 />
+                <Stack.Screen 
+  name="Calendar" 
+  component={CalendarScreen}
+  options={{ title: 'Schedule' }}
+/>
               </>
             )}
             

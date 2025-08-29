@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+
 import {
   View,
   Text,
@@ -103,7 +104,7 @@ export default function TechDashboard({ navigation }) {
         
         <TouchableOpacity 
           style={styles.dashboardButton}
-          onPress={() => Alert.alert('Coming Soon', 'This feature will be available soon!')}
+          onPress={() => navigation.navigate('Calendar')}
         >
           <View style={styles.buttonContent}>
             <Text style={styles.buttonIcon}>📅</Text>
