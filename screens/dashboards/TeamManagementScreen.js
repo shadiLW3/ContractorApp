@@ -31,43 +31,52 @@ export default function TeamManagementScreen({ navigation }) {
   const [newMemberName, setNewMemberName] = useState('');
   const [newMemberEmail, setNewMemberEmail] = useState('');
   const [newMemberRole, setNewMemberRole] = useState('Technician');
+  const [userProfile, setUserProfile] = useState(null);
 
   useEffect(() => {
+    loadUserProfile();
     loadTeamMembers();
   }, []);
+  
+  const loadUserProfile = async () => {
+    try {
+      const userDoc = await getDocs(query(
+        collection(db, 'users'),
+        where('uid', '==', auth.currentUser.uid)
+      ));
+      if (!userDoc.empty) {
+        setUserProfile(userDoc.docs[0].data());
+      }
+    } catch (error) {
+      console.error('Error loading user profile:', error);
+    }
+  };
 
   const loadTeamMembers = async () => {
     try {
-      // This is a placeholder - in a real app, you'd fetch actual team members
-      // For now, we'll just show some demo data
-      const demoTeam = [
-        {
-          id: '1',
-          name: 'John Smith',
-          role: 'Lead Technician',
-          email: 'john@example.com',
-          phone: '(555) 123-4567',
-          status: 'active'
-        },
-        {
-          id: '2',
-          name: 'Mike Johnson',
-          role: 'Technician',
-          email: 'mike@example.com',
-          phone: '(555) 234-5678',
-          status: 'active'
-        },
-        {
-          id: '3',
-          name: 'Sarah Davis',
-          role: 'Apprentice',
-          email: 'sarah@example.com',
-          phone: '(555) 345-6789',
-          status: 'active'
-        }
-      ];
+      // Query for technicians managed by this Sub
+      const q = query(
+        collection(db, 'users'),
+        where('managedBy', '==', auth.currentUser.uid),
+        where('role', '==', 'Tech')
+      );
       
-      setTeamMembers(demoTeam);
+      const querySnapshot = await getDocs(q);
+      const members = [];
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        members.push({ 
+          id: doc.id, 
+          name: `${data.firstName || ''} ${data.lastName || ''}`.trim() || data.email,
+          role: data.role || 'Technician',
+          email: data.email || '',
+          phone: data.phone || '(555) 000-0000',
+          status: data.status || 'active',
+          ...data 
+        });
+      });
+      
+      setTeamMembers(members);
     } catch (error) {
       console.error('Error loading team:', error);
       Alert.alert('Error', 'Failed to load team members');
@@ -76,34 +85,44 @@ export default function TeamManagementScreen({ navigation }) {
     }
   };
 
-  const handleAddMember = () => {
+  const handleAddMember = async () => {
     if (!newMemberName || !newMemberEmail) {
       Alert.alert('Missing Info', 'Please fill in all fields');
       return;
     }
-
-    // In a real app, you'd add to database
-    const newMember = {
-      id: Date.now().toString(),
-      name: newMemberName,
-      role: newMemberRole,
-      email: newMemberEmail,
-      phone: '(555) 000-0000',
-      status: 'pending'
-    };
-
-    setTeamMembers([...teamMembers, newMember]);
-    setShowAddModal(false);
-    setNewMemberName('');
-    setNewMemberEmail('');
-    setNewMemberRole('Technician');
-    
-    Toast.show({
-      type: 'success',
-      text1: 'Team Member Added',
-      text2: newMemberName,
-      visibilityTime: 2000
-    });
+  
+    try {
+      // Create invitation for tech
+      await addDoc(collection(db, 'invitations'), {
+        inviterId: auth.currentUser.uid,
+        inviterName: userProfile?.firstName || '',
+        inviterCompany: userProfile?.companyName || '',
+        recipientEmail: newMemberEmail,
+        recipientName: newMemberName,
+        role: 'Tech', // Always 'Tech' for team members
+        type: 'team_invite',
+        status: 'pending',
+        createdAt: new Date()
+      });
+  
+      Toast.show({
+        type: 'success',
+        text1: 'Invitation Sent',
+        text2: `Invited ${newMemberName} to join your team`,
+        visibilityTime: 2000
+      });
+      
+      setShowAddModal(false);
+      setNewMemberName('');
+      setNewMemberEmail('');
+      setNewMemberRole('Technician');
+      
+      // Reload team members to show pending invitation
+      loadTeamMembers();
+    } catch (error) {
+      console.error('Error adding member:', error);
+      Alert.alert('Error', 'Failed to send invitation');
+    }
   };
 
   const handleRemoveMember = (memberId, memberName) => {

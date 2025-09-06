@@ -12,6 +12,7 @@ import {
   ActivityIndicator
 } from 'react-native';
 import { auth, db } from '../../firebaseConfig';
+
 import {
   doc,
   getDoc,
