@@ -9,7 +9,10 @@ import {
   Alert,
   ActivityIndicator,
   TextInput,
-  Modal
+  Modal,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform
 } from 'react-native';
 import { auth, db } from '../../firebaseConfig';
 import { 
@@ -21,7 +24,9 @@ import {
   updateDoc,
   addDoc,
   deleteDoc,
-  onSnapshot
+  onSnapshot,
+  orderBy,
+  limit
 } from 'firebase/firestore';
 
 export default function TeamManagementScreen({ navigation }) {
@@ -32,6 +37,12 @@ export default function TeamManagementScreen({ navigation }) {
   const [newMemberEmail, setNewMemberEmail] = useState('');
   const [newMemberRole, setNewMemberRole] = useState('Technician');
   const [userProfile, setUserProfile] = useState(null);
+  
+  // Search-related states
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [showSearchDropdown, setShowSearchDropdown] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
 
   useEffect(() => {
     loadUserProfile();
@@ -85,6 +96,69 @@ export default function TeamManagementScreen({ navigation }) {
     }
   };
 
+  const searchUsers = async (searchText) => {
+    setSearchQuery(searchText);
+    
+    if (searchText.length < 2) {
+      setSearchResults([]);
+      setShowSearchDropdown(false);
+      return;
+    }
+
+    setIsSearching(true);
+    try {
+      // Search all users (not just Techs)
+      const usersRef = collection(db, 'users');
+      const q = query(
+        usersRef,
+        orderBy('email'),
+        limit(10)
+      );
+      
+      const querySnapshot = await getDocs(q);
+      const results = [];
+      
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        const fullName = `${data.firstName || ''} ${data.lastName || ''}`.trim();
+        const lowerQuery = searchText.toLowerCase();
+        
+        // Check if name or email matches the search
+        if (
+          fullName.toLowerCase().includes(lowerQuery) ||
+          data.email.toLowerCase().includes(lowerQuery)
+        ) {
+          // Don't show users already in the team or the current user
+          if (!teamMembers.some(member => member.email === data.email) && 
+              data.uid !== auth.currentUser.uid) {
+            results.push({
+              id: doc.id,
+              name: fullName || data.email,
+              email: data.email,
+              role: data.role,
+              companyName: data.companyName || ''
+            });
+          }
+        }
+      });
+      
+      setSearchResults(results);
+      setShowSearchDropdown(results.length > 0);
+    } catch (error) {
+      console.error('Error searching users:', error);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const selectUser = (user) => {
+    setNewMemberName(user.name);
+    setNewMemberEmail(user.email);
+    setSearchQuery(user.email);
+    setShowSearchDropdown(false);
+    setSearchResults([]);
+  };
+
   const handleAddMember = async () => {
     if (!newMemberName || !newMemberEmail) {
       Alert.alert('Missing Info', 'Please fill in all fields');
@@ -116,6 +190,8 @@ export default function TeamManagementScreen({ navigation }) {
       setNewMemberName('');
       setNewMemberEmail('');
       setNewMemberRole('Technician');
+      setSearchQuery('');
+      setSearchResults([]);
       
       // Reload team members to show pending invitation
       loadTeamMembers();
@@ -237,11 +313,58 @@ export default function TeamManagementScreen({ navigation }) {
         visible={showAddModal}
         animationType="slide"
         transparent={true}
-        onRequestClose={() => setShowAddModal(false)}
+        onRequestClose={() => {
+          setShowAddModal(false);
+          setSearchQuery('');
+          setSearchResults([]);
+          setShowSearchDropdown(false);
+        }}
       >
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingView 
+          style={styles.modalOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Add Team Member</Text>
+            
+            <Text style={styles.inputLabel}>Search for User:</Text>
+            <View style={styles.searchContainer}>
+              <TextInput
+                style={styles.modalInput}
+                placeholder="Type name or email to search..."
+                value={searchQuery}
+                onChangeText={searchUsers}
+                autoCapitalize="none"
+              />
+              
+              {isSearching && (
+                <View style={styles.searchingIndicator}>
+                  <ActivityIndicator size="small" color="#007AFF" />
+                </View>
+              )}
+            </View>
+
+            {showSearchDropdown && (
+              <ScrollView style={styles.searchDropdown} nestedScrollEnabled={true}>
+                {searchResults.map((user) => (
+                  <TouchableOpacity
+                    key={user.id}
+                    style={styles.searchResult}
+                    onPress={() => selectUser(user)}
+                  >
+                    <View>
+                      <Text style={styles.searchResultName}>{user.name}</Text>
+                      <Text style={styles.searchResultEmail}>{user.email}</Text>
+                      {user.companyName ? (
+                        <Text style={styles.searchResultCompany}>{user.companyName} • {user.role}</Text>
+                      ) : (
+                        <Text style={styles.searchResultCompany}>{user.role}</Text>
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            )}
             
             <TextInput
               style={styles.modalInput}
@@ -283,7 +406,14 @@ export default function TeamManagementScreen({ navigation }) {
             <View style={styles.modalButtons}>
               <TouchableOpacity 
                 style={[styles.modalButton, styles.cancelButton]}
-                onPress={() => setShowAddModal(false)}
+                onPress={() => {
+                  setShowAddModal(false);
+                  setSearchQuery('');
+                  setSearchResults([]);
+                  setShowSearchDropdown(false);
+                  setNewMemberName('');
+                  setNewMemberEmail('');
+                }}
               >
                 <Text style={styles.cancelButtonText}>Cancel</Text>
               </TouchableOpacity>
@@ -296,7 +426,7 @@ export default function TeamManagementScreen({ navigation }) {
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
@@ -475,6 +605,7 @@ const styles = StyleSheet.create({
     padding: 24,
     width: '90%',
     maxWidth: 400,
+    maxHeight: '80%',
   },
   modalTitle: {
     fontSize: 20,
@@ -494,6 +625,43 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     marginBottom: 8,
+  },
+  searchContainer: {
+    position: 'relative',
+  },
+  searchingIndicator: {
+    position: 'absolute',
+    right: 12,
+    top: 12,
+  },
+  searchDropdown: {
+    maxHeight: 150,
+    backgroundColor: 'white',
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    marginTop: -10,
+    marginBottom: 16,
+  },
+  searchResult: {
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  searchResultName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+  },
+  searchResultEmail: {
+    fontSize: 14,
+    color: '#666',
+    marginTop: 2,
+  },
+  searchResultCompany: {
+    fontSize: 12,
+    color: '#999',
+    marginTop: 2,
   },
   roleSelector: {
     marginBottom: 20,
