@@ -146,12 +146,11 @@ export default function NetworkScreen({ navigation }) {
 
   const fetchRecentCollaborators = async () => {
     try {
-      // Get relationships where GC worked with Subs
+      // Simplified query - get all relationships first, then sort client-side
       const relationshipsQuery = query(
         collection(db, 'relationships'),
         where('primaryUserId', '==', auth.currentUser.uid),
-        where('type', '==', 'gc-sub'),
-        orderBy('lastCollaboration', 'desc')
+        where('type', '==', 'gc-sub')
       );
       
       const snapshot = await getDocs(relationshipsQuery);
@@ -170,6 +169,13 @@ export default function NetworkScreen({ navigation }) {
           });
         }
       }
+      
+      // Sort by lastCollaboration on client side instead of in query
+      collaborators.sort((a, b) => {
+        const aTime = a.lastCollaboration?.toDate ? a.lastCollaboration.toDate() : new Date(a.lastCollaboration || 0);
+        const bTime = b.lastCollaboration?.toDate ? b.lastCollaboration.toDate() : new Date(b.lastCollaboration || 0);
+        return bTime - aTime; // Most recent first
+      });
       
       setRecentCollaborators(collaborators.slice(0, 10)); // Top 10 recent
     } catch (error) {

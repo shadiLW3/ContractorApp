@@ -1249,8 +1249,9 @@ const styles = StyleSheet.create({
     borderColor: '#ddd',
     borderRadius: 8,
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: Platform.OS === 'ios' ? 10 : 8,
     fontSize: 16,
+    minHeight: Platform.OS === 'ios' ? 40 : 36,
   },
   searchButton: {
     backgroundColor: '#007AFF',
