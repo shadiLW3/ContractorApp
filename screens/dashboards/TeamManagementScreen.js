@@ -24,9 +24,7 @@ import {
   updateDoc,
   addDoc,
   deleteDoc,
-  onSnapshot,
-  orderBy,
-  limit
+  onSnapshot
 } from 'firebase/firestore';
 
 export default function TeamManagementScreen({ navigation }) {
@@ -107,13 +105,9 @@ export default function TeamManagementScreen({ navigation }) {
 
     setIsSearching(true);
     try {
-      // Search all users (not just Techs)
+      // Get ALL users from the database - no limit
       const usersRef = collection(db, 'users');
-      const q = query(
-        usersRef,
-        orderBy('email'),
-        limit(10)
-      );
+      const q = query(usersRef);
       
       const querySnapshot = await getDocs(q);
       const results = [];
@@ -135,15 +129,27 @@ export default function TeamManagementScreen({ navigation }) {
               id: doc.id,
               name: fullName || data.email,
               email: data.email,
-              role: data.role,
+              role: data.role || 'User',
               companyName: data.companyName || ''
             });
           }
         }
       });
       
-      setSearchResults(results);
-      setShowSearchDropdown(results.length > 0);
+      // Sort results by relevance (exact email match first, then alphabetical)
+      results.sort((a, b) => {
+        const aExact = a.email.toLowerCase() === lowerQuery;
+        const bExact = b.email.toLowerCase() === lowerQuery;
+        if (aExact && !bExact) return -1;
+        if (!aExact && bExact) return 1;
+        return a.email.localeCompare(b.email);
+      });
+      
+      // Limit to top 10 results AFTER filtering and sorting
+      const topResults = results.slice(0, 10);
+      
+      setSearchResults(topResults);
+      setShowSearchDropdown(topResults.length > 0);
     } catch (error) {
       console.error('Error searching users:', error);
     } finally {
@@ -201,7 +207,7 @@ export default function TeamManagementScreen({ navigation }) {
     }
   };
 
-  const handleRemoveMember = (memberId, memberName) => {
+  const handleRemoveMember = async (memberId, memberName) => {
     Alert.alert(
       'Remove Team Member',
       `Are you sure you want to remove ${memberName} from your team?`,
@@ -210,13 +216,25 @@ export default function TeamManagementScreen({ navigation }) {
         {
           text: 'Remove',
           style: 'destructive',
-          onPress: () => {
-            setTeamMembers(teamMembers.filter(m => m.id !== memberId));
-            Toast.show({
-              type: 'success',
-              text1: 'Team Member Removed',
-              visibilityTime: 2000
-            });
+          onPress: async () => {
+            try {
+              // Update the user document to remove managedBy field
+              await updateDoc(doc(db, 'users', memberId), {
+                managedBy: null
+              });
+              
+              // Remove from local state
+              setTeamMembers(teamMembers.filter(m => m.id !== memberId));
+              
+              Toast.show({
+                type: 'success',
+                text1: 'Team Member Removed',
+                visibilityTime: 2000
+              });
+            } catch (error) {
+              console.error('Error removing team member:', error);
+              Alert.alert('Error', 'Failed to remove team member');
+            }
           }
         }
       ]
