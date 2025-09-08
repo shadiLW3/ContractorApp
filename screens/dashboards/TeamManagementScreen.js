@@ -11,7 +11,6 @@ import {
   ActivityIndicator,
   TextInput,
   Modal,
-  getDoc,
   ScrollView,
   KeyboardAvoidingView,
   Platform
@@ -23,6 +22,7 @@ import {
   where, 
   getDocs,
   doc,
+  getDoc,
   updateDoc,
   addDoc,
   deleteDoc,
