@@ -80,32 +80,61 @@ export default function ProjectDetailsScreen({ route, navigation }) {
   };
 
   useEffect(() => {
-    fetchInitialData();
-    const unsubscribe = subscribeToMessages();
-    return () => unsubscribe && unsubscribe();
-  }, []);
+    let unsubscribeMessages = null;
+    let mounted = true; // Track if component is mounted
+    
+    const setup = async () => {
+      if (!mounted) return;
+      await fetchInitialData();
+      
+      if (mounted && projectId) {
+        unsubscribeMessages = subscribeToMessages();
+      }
+    };
+    
+    setup();
+    
+    // Cleanup function
+    return () => {
+      mounted = false; // Prevent state updates after unmount
+      if (unsubscribeMessages) {
+        unsubscribeMessages();
+      }
+    };
+  }, [projectId]);
 
   const fetchInitialData = async () => {
+    let mounted = true; // Add this flag at the beginning
+    
     try {
       const userDoc = await getDoc(doc(db, 'users', auth.currentUser.uid));
+      if (!mounted) return; // Check if still mounted
+      
       if (userDoc.exists()) {
         const userData = userDoc.data();
+        if (!mounted) return; // Check again
         setCurrentUser(userData);
         
         const projectDoc = await getDoc(doc(db, 'projects', projectId));
+        if (!mounted) return; // Check again
+        
         if (projectDoc.exists()) {
           const projectData = projectDoc.data();
+          if (!mounted) return; // Check before setting state
+          
           setProject(projectData);
           navigation.setOptions({ title: projectData.name });
           
           // Check user status and permissions
           if (userData.role === 'GC' && projectData.createdBy === auth.currentUser.uid) {
+            if (!mounted) return;
             setUserStatus('accepted');
             setCanInvite(true);
           } else if (userData.role === 'Sub') {
             const subInfo = projectData.invitedSubs?.find(
               sub => sub.id === auth.currentUser.uid
             );
+            if (!mounted) return;
             setUserStatus(subInfo?.status || 'pending');
             
             // Check if Sub can invite techs
@@ -114,15 +143,23 @@ export default function ProjectDetailsScreen({ route, navigation }) {
             }
           } else if (userData.role === 'Tech') {
             const isAssigned = projectData.assignedTechs?.includes(auth.currentUser.uid);
+            if (!mounted) return;
             setUserStatus(isAssigned ? 'accepted' : 'pending');
           }
         }
       }
     } catch (error) {
+      if (!mounted) return; // Don't show error if component unmounted
       console.error('Error fetching data:', error);
       Alert.alert('Error', 'Failed to load project details');
     }
-    setLoading(false);
+    
+    if (mounted) {
+      setLoading(false);
+    }
+    
+    // Return cleanup function
+    return () => { mounted = false; };
   };
 
   const subscribeToMessages = () => {

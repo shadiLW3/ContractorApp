@@ -74,13 +74,24 @@ export default function ProjectListScreen({ navigation }) {
         setProjects(projectList);
         return; // Exit early for subs
       } else if (role === 'Tech') {
-        // Tech sees projects they're assigned to
-        // For now, techs would be added to projects by their subcontractor
-        // This is a placeholder - you'll need to implement assignment logic
-        projectsQuery = query(
-          collection(db, 'projects'),
-          where('assignedTechs', 'array-contains', auth.currentUser.uid)
-        );
+        // Tech sees projects through their subcontractor's invitations
+        // First, find if this tech is managed by a sub
+        const userDoc = await getDoc(doc(db, 'users', auth.currentUser.uid));
+        const userData = userDoc.data();
+        
+        if (userData?.managedBy) {
+          // If managed by a sub, get projects where that sub is invited
+          projectsQuery = query(
+            collection(db, 'projects'),
+            where('invitedSubs', 'array-contains', userData.managedBy)
+          );
+        } else {
+          // If not managed, check for direct project assignments (future feature)
+          // For now, return empty
+          setProjects([]);
+          setLoading(false);
+          return;
+        }
       }
 
       // Execute query for GC and Tech

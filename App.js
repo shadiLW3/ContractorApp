@@ -35,12 +35,19 @@ export default function App() {
 
   // Listen for authentication state changes
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    let profileUnsubscribe = null;
+    
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         setUser(user);
         
-        // This listens for CHANGES to the profile in real-time
-        const profileUnsubscribe = onSnapshot(
+        // Clean up any existing profile listener first
+        if (profileUnsubscribe) {
+          profileUnsubscribe();
+        }
+        
+        // Set up new profile listener
+        profileUnsubscribe = onSnapshot(
           doc(db, 'users', user.uid),
           (doc) => {
             if (doc.exists()) {
@@ -49,18 +56,32 @@ export default function App() {
               setUserProfile(null);
             }
             setLoading(false);
+          },
+          (error) => {
+            console.error('Error listening to profile:', error);
+            setUserProfile(null);
+            setLoading(false);
           }
         );
-        
-        return () => profileUnsubscribe();
       } else {
+        // User logged out - clean up
+        if (profileUnsubscribe) {
+          profileUnsubscribe();
+          profileUnsubscribe = null;
+        }
         setUser(null);
         setUserProfile(null);
         setLoading(false);
       }
     });
   
-    return unsubscribe;
+    // Cleanup function
+    return () => {
+      unsubscribe();
+      if (profileUnsubscribe) {
+        profileUnsubscribe();
+      }
+    };
   }, []);
 
   if (loading) {
