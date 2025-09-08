@@ -51,6 +51,7 @@ export default function ProfileSetupScreen({ navigation, selectedRole, selectedS
     setLoading(true);
     try {
       const userProfile = {
+        uid: auth.currentUser.uid, // CRITICAL: Add this line!
         email: auth.currentUser.email,
         role: selectedRole,
         firstName: firstName,
@@ -60,9 +61,10 @@ export default function ProfileSetupScreen({ navigation, selectedRole, selectedS
         phoneVerified: false, // Set to false since we're not verifying yet
         companyName: companyName || null,
         createdAt: new Date(),
+        updatedAt: new Date(), // Also adding this for tracking
         displayName: selectedRole === 'GC' ? 'General Contractor' : 
-                   selectedRole === 'Sub' ? 'Subcontractor' : 
-                   `${selectedSpecialization} Technician`,
+                     selectedRole === 'Sub' ? 'Subcontractor' : 
+                     `${selectedSpecialization} Technician`,
         ...(selectedRole === 'Tech' && { specialization: selectedSpecialization })
       };
       

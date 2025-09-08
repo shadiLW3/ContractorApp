@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Toast from 'react-native-toast-message';
-import { checkPermission } from '../../utils/permissions';
+import { hasPermission } from '../../utils/permissions';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
   TextInput,
   Modal,
+  getDoc,
   ScrollView,
   KeyboardAvoidingView,
   Platform
@@ -50,21 +51,24 @@ export default function TeamManagementScreen({ navigation }) {
   
   const checkAccess = async () => {
     try {
-      const userDoc = await getDocs(query(
-        collection(db, 'users'),
-        where('uid', '==', auth.currentUser.uid)
-      ));
-      if (!userDoc.empty) {
-        const userData = userDoc.docs[0].data();
-        if (userData.role !== 'Sub') {
-          Alert.alert('Access Denied', 'Only Subcontractors can manage teams');
+      // Fix: Query by document ID instead of uid field
+      const userDoc = await getDoc(doc(db, 'users', auth.currentUser.uid));
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        if (userData.role !== 'Sub') {  // Now this will work correctly
+          Alert.alert('Access Denied', 'Only subcontractors can manage teams');
           navigation.goBack();
-          return;
+          return; // Add return to stop execution
         }
         setUserProfile(userData);
+      } else {
+        Alert.alert('Error', 'User profile not found');
+        navigation.goBack();
       }
     } catch (error) {
-      console.error('Error loading user profile:', error);
+      console.error('Error checking access:', error);
+      Alert.alert('Error', 'Failed to verify access');
+      navigation.goBack();
     }
   };
 
