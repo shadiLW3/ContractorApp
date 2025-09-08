@@ -1,6 +1,11 @@
 import { initializeApp } from 'firebase/app';
 import { initializeAuth, getReactNativePersistence } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { 
+  initializeFirestore, 
+  persistentLocalCache,
+  persistentMultipleTabManager,
+  CACHE_SIZE_UNLIMITED
+} from 'firebase/firestore';
 import ReactNativeAsyncStorage from '@react-native-async-storage/async-storage';
 
 const firebaseConfig = {
@@ -15,9 +20,22 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 
-// Initialize Auth with AsyncStorage for persistence
+// Initialize Auth with AsyncStorage for persistence (keeping your existing setup)
 export const auth = initializeAuth(app, {
   persistence: getReactNativePersistence(ReactNativeAsyncStorage)
 });
 
-export const db = getFirestore(app);
+// Initialize Firestore with enhanced offline capabilities
+export const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({
+    cacheSizeBytes: CACHE_SIZE_UNLIMITED,
+    tabManager: persistentMultipleTabManager()
+  }),
+  experimentalForceLongPolling: true, // Helps with connection issues
+  useFetchStreams: false // Helps with CORS issues in development
+});
+
+// Optional: Enable network state logging for debugging
+if (__DEV__) {
+  console.log('Firebase initialized in development mode');
+}

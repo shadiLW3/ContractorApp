@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import Toast from 'react-native-toast-message';
+import { validateEmail, validatePhone, formatPhone } from '../../utils/validation';
 import {
   View,
   Text,
@@ -32,15 +33,18 @@ export default function ProfileSetupScreen({ navigation, selectedRole, selectedS
 
   const completeProfileSetup = async () => {
     // Validation
-    if (!firstName || !lastName || !phoneNumber) {
-      Alert.alert('Missing Information', 'Please fill in all required fields');
+    if (!firstName.trim() || !lastName.trim()) {
+      Alert.alert('Missing Information', 'Please enter your first and last name');
       return;
     }
-
-    // Validate phone number
-    const cleanedPhone = phoneNumber.replace(/\D/g, '');
-    if (cleanedPhone.length !== 10) {
+    
+    if (!phoneNumber || !validatePhone(phoneNumber)) {
       Alert.alert('Invalid Phone', 'Please enter a valid 10-digit phone number');
+      return;
+    }
+    
+    if (selectedRole === 'Sub' && !companyName.trim()) {
+      Alert.alert('Missing Company', 'Subcontractors must enter a company name');
       return;
     }
 
@@ -52,7 +56,7 @@ export default function ProfileSetupScreen({ navigation, selectedRole, selectedS
         firstName: firstName,
         lastName: lastName,
         publicName: firstName, // Only first name is public
-        phoneNumber: formatPhoneDisplay(phoneNumber),
+        phoneNumber: formatPhone(phoneNumber),
         phoneVerified: false, // Set to false since we're not verifying yet
         companyName: companyName || null,
         createdAt: new Date(),

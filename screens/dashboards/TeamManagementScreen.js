@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Toast from 'react-native-toast-message';
+import { checkPermission } from '../../utils/permissions';
 import {
   View,
   Text,
@@ -43,18 +44,24 @@ export default function TeamManagementScreen({ navigation }) {
   const [isSearching, setIsSearching] = useState(false);
 
   useEffect(() => {
-    loadUserProfile();
+    checkAccess();
     loadTeamMembers();
   }, []);
   
-  const loadUserProfile = async () => {
+  const checkAccess = async () => {
     try {
       const userDoc = await getDocs(query(
         collection(db, 'users'),
         where('uid', '==', auth.currentUser.uid)
       ));
       if (!userDoc.empty) {
-        setUserProfile(userDoc.docs[0].data());
+        const userData = userDoc.docs[0].data();
+        if (userData.role !== 'Sub') {
+          Alert.alert('Access Denied', 'Only Subcontractors can manage teams');
+          navigation.goBack();
+          return;
+        }
+        setUserProfile(userData);
       }
     } catch (error) {
       console.error('Error loading user profile:', error);
@@ -210,26 +217,40 @@ export default function TeamManagementScreen({ navigation }) {
   const handleRemoveMember = async (memberId, memberName) => {
     Alert.alert(
       'Remove Team Member',
-      `Are you sure you want to remove ${memberName} from your team?`,
+      `Remove ${memberName} from your team? They will remain in your professional network for future collaboration.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Remove',
+          text: 'Remove from Team',
           style: 'destructive',
           onPress: async () => {
             try {
-              // Update the user document to remove managedBy field
+              // Update to remove managedBy but maintain connection history
               await updateDoc(doc(db, 'users', memberId), {
-                managedBy: null
+                managedBy: null,
+                previousManager: auth.currentUser.uid // Keep history
+              });
+              
+              // Add to connections collection for future reference
+              await addDoc(collection(db, 'connections'), {
+                userId: auth.currentUser.uid,
+                connectedUserId: memberId,
+                connectedUserName: memberName,
+                connectionType: 'previous_team_member',
+                establishedAt: new Date(),
+                removedAt: new Date(),
+                status: 'inactive',
+                notes: 'Removed from active team but remains in network'
               });
               
               // Remove from local state
               setTeamMembers(teamMembers.filter(m => m.id !== memberId));
               
               Toast.show({
-                type: 'success',
+                type: 'info',
                 text1: 'Team Member Removed',
-                visibilityTime: 2000
+                text2: 'They remain in your professional network',
+                visibilityTime: 3000
               });
             } catch (error) {
               console.error('Error removing team member:', error);

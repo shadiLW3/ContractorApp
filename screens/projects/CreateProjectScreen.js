@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Toast from 'react-native-toast-message';
+import { hasPermission } from '../../utils/permissions';
 import {
   View,
   Text,
@@ -11,7 +12,8 @@ import {
   KeyboardAvoidingView,
   Platform,
   Modal,
-  FlatList
+  FlatList,
+  Switch
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { auth, db } from '../../firebaseConfig';
@@ -30,6 +32,10 @@ export default function CreateProjectScreen({ navigation }) {
   const [showStartPicker, setShowStartPicker] = useState(false);
   const [showEndPicker, setShowEndPicker] = useState(false);
   
+  // Permission settings
+  const [allowSubInvites, setAllowSubInvites] = useState(true);
+  const [allowSubEvents, setAllowSubEvents] = useState(true);
+  
   // Invite subcontractors
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -41,11 +47,18 @@ export default function CreateProjectScreen({ navigation }) {
   const [currentUser, setCurrentUser] = useState(null);
 
   useEffect(() => {
-    // Get current user's profile
+    // Check permission and get current user's profile
     const fetchUserProfile = async () => {
       const userDoc = await getDoc(doc(db, 'users', auth.currentUser.uid));
       if (userDoc.exists()) {
-        setCurrentUser(userDoc.data());
+        const userData = userDoc.data();
+        setCurrentUser(userData);
+        
+        // Check if user has permission to create projects
+        if (userData.role !== 'GC') {
+          Alert.alert('Access Denied', 'Only General Contractors can create projects');
+          navigation.goBack();
+        }
       }
     };
     fetchUserProfile();
@@ -114,7 +127,7 @@ export default function CreateProjectScreen({ navigation }) {
 
     setLoading(true);
     try {
-      // Create project document
+      // Create project document with flexible permissions
       const projectData = {
         // Basic info
         name: projectName,
@@ -139,6 +152,13 @@ export default function CreateProjectScreen({ navigation }) {
           email: currentUser?.email || ''
         },
         
+        // Permission settings (NEW)
+        allowSubInvites: allowSubInvites,  // Subs can invite their techs
+        allowSubEvents: allowSubEvents,    // Subs can create team events
+        invitePermissions: {
+          [auth.currentUser.uid]: 'all',   // Creator can invite anyone
+        },
+        
         // Invited subcontractors
         invitedSubs: selectedSubs.map(sub => ({
           id: sub.id,
@@ -146,7 +166,8 @@ export default function CreateProjectScreen({ navigation }) {
           company: sub.companyName || '',
           email: sub.email,
           status: 'pending', // pending, accepted, declined
-          invitedAt: new Date().toISOString()
+          invitedAt: new Date().toISOString(),
+          canInviteTechs: allowSubInvites  // Store permission at sub level too
         })),
         
         // Project status
@@ -168,45 +189,47 @@ export default function CreateProjectScreen({ navigation }) {
         type: 'system' // system, text, image, etc.
       });
 
- // In CreateProjectScreen.js, find this section (around line 140-155):
-// Look for the comment "// Send invitations"
-// REPLACE the entire for loop with this:
+      // Send invitations with consistent field names
+      for (const sub of selectedSubs) {
+        await addDoc(collection(db, 'invitations'), {
+          // Project info
+          projectId: docRef.id,
+          projectName: projectName,
+          
+          // FROM user (GC who is inviting)
+          inviterId: auth.currentUser.uid,
+          inviterName: currentUser?.firstName || '',
+          inviterCompany: currentUser?.companyName || '',
+          
+          // TO user (Sub being invited)
+          recipientId: sub.id,
+          recipientName: sub.firstName,
+          recipientEmail: sub.email,
+          
+          // Role and status
+          role: 'Sub',
+          type: 'project_invite',
+          status: 'pending',
+          createdAt: new Date(),
+          
+          // Permissions info
+          projectPermissions: {
+            canInviteTechs: allowSubInvites,
+            canCreateEvents: allowSubEvents
+          },
+          
+          // Optional message
+          message: `You're invited to join ${projectName} project`
+        });
+      }
 
-// Send invitations (in production, you'd send push notifications or emails here)
-// For now, we'll create invitation documents
-for (const sub of selectedSubs) {
-    await addDoc(collection(db, 'invitations'), {
-      // Project info
-      projectId: docRef.id,
-      projectName: projectName,
-      
-      // FROM user (GC who is inviting)
-      inviterId: auth.currentUser.uid,
-      inviterName: currentUser?.firstName || '',
-      inviterCompany: currentUser?.companyName || '',
-      
-      // TO user (Sub being invited) - THESE ARE THE KEY CHANGES
-      recipientId: sub.id,  // CHANGED from toUserId to recipientId
-      recipientName: sub.firstName,  // CHANGED from toUserName to recipientName
-      recipientEmail: sub.email,
-      
-      // Role and status
-      role: 'Subcontractor',  // ADDED THIS FIELD
-      status: 'pending',
-      createdAt: new Date(),  // Changed to Date object instead of string
-      
-      // Optional message
-      message: `You're invited to join ${projectName} project`  // ADDED THIS
-    });
-  }
-
-  Toast.show({
-    type: 'success',
-    text1: `Project ${projectName} Created! 🎉`,
-    text2: `${selectedSubs.length} subcontractor(s) invited`,
-    visibilityTime: 3000
-  });
-  navigation.goBack();
+      Toast.show({
+        type: 'success',
+        text1: `Project ${projectName} Created! 🎉`,
+        text2: `${selectedSubs.length} subcontractor(s) invited`,
+        visibilityTime: 3000
+      });
+      navigation.goBack();
     } catch (error) {
       Alert.alert('Error', 'Failed to create project. Please try again.');
       console.error(error);
@@ -328,6 +351,39 @@ for (const sub of selectedSubs) {
                 </Text>
               </TouchableOpacity>
             </View>
+          </View>
+        </View>
+
+        {/* Permissions Section (NEW) */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Project Permissions</Text>
+          
+          <View style={styles.permissionRow}>
+            <View style={styles.permissionText}>
+              <Text style={styles.permissionLabel}>Allow Subs to invite their teams</Text>
+              <Text style={styles.permissionDescription}>
+                Subcontractors can add their technicians to this project
+              </Text>
+            </View>
+            <Switch
+              value={allowSubInvites}
+              onValueChange={setAllowSubInvites}
+              trackColor={{ false: '#ddd', true: '#4ECDC4' }}
+            />
+          </View>
+          
+          <View style={styles.permissionRow}>
+            <View style={styles.permissionText}>
+              <Text style={styles.permissionLabel}>Allow Subs to create events</Text>
+              <Text style={styles.permissionDescription}>
+                Subcontractors can schedule team events on the calendar
+              </Text>
+            </View>
+            <Switch
+              value={allowSubEvents}
+              onValueChange={setAllowSubEvents}
+              trackColor={{ false: '#ddd', true: '#4ECDC4' }}
+            />
           </View>
         </View>
 
@@ -553,6 +609,32 @@ const styles = StyleSheet.create({
   dateText: {
     fontSize: 16,
     color: '#333',
+  },
+  // Permissions styles (NEW)
+  permissionRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: 'white',
+    padding: 15,
+    borderRadius: 8,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  permissionText: {
+    flex: 1,
+    marginRight: 10,
+  },
+  permissionLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 4,
+  },
+  permissionDescription: {
+    fontSize: 13,
+    color: '#666',
   },
   inviteButton: {
     backgroundColor: '#4ECDC4',

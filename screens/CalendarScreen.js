@@ -12,6 +12,7 @@ import {
   Switch
 } from 'react-native';
 import { Calendar, CalendarList, Agenda, WeekCalendar } from 'react-native-calendars';
+import { validateTime, formatTimeInput, validateDate, formatDateInput } from '../utils/validation';
 import { auth, db } from '../firebaseConfig';
 import { 
   collection, 
@@ -176,8 +177,18 @@ export default function CalendarScreen({ navigation }) {
   };
 
   const createSchedule = async () => {
-    if (!scheduleTitle) {
-      Alert.alert('Missing Info', 'Please add a title');
+    if (!scheduleTitle.trim()) {
+      Alert.alert('Missing Title', 'Please enter an event title');
+      return;
+    }
+    
+    if (scheduleStartTime && !validateTime(scheduleStartTime)) {
+      Alert.alert('Invalid Start Time', 'Please enter time in HH:MM format (e.g., 14:30)');
+      return;
+    }
+    
+    if (scheduleEndTime && !validateTime(scheduleEndTime)) {
+      Alert.alert('Invalid End Time', 'Please enter time in HH:MM format (e.g., 14:30)');
       return;
     }
 
@@ -517,18 +528,28 @@ export default function CalendarScreen({ navigation }) {
               />
               
               <View style={styles.timeRow}>
-                <TextInput
-                  style={[styles.modalInput, styles.timeInput]}
-                  placeholder="Start"
-                  value={scheduleStartTime}
-                  onChangeText={setScheduleStartTime}
-                />
-                <TextInput
-                  style={[styles.modalInput, styles.timeInput]}
-                  placeholder="End"
-                  value={scheduleEndTime}
-                  onChangeText={setScheduleEndTime}
-                />
+              <TextInput
+  style={[styles.modalInput, styles.timeInput]}
+  placeholder="HH:MM"
+  value={scheduleStartTime}
+  onChangeText={(text) => {
+    const formatted = formatTimeInput(text);
+    setScheduleStartTime(formatted);
+  }}
+  maxLength={5}
+  keyboardType="numeric"
+/>
+<TextInput
+  style={[styles.modalInput, styles.timeInput]}
+  placeholder="HH:MM"
+  value={scheduleEndTime}
+  onChangeText={(text) => {
+    const formatted = formatTimeInput(text);
+    setScheduleEndTime(formatted);
+  }}
+  maxLength={5}
+  keyboardType="numeric"
+/>
               </View>
               
               <TextInput

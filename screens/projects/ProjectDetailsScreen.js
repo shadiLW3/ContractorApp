@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { canInviteToProject } from '../../utils/permissions';
 import {
   View,
   Text,
@@ -11,7 +12,8 @@ import {
   Alert,
   ActivityIndicator,
   Modal,
-  ScrollView
+  ScrollView,
+  Switch
 } from 'react-native';
 import { auth, db } from '../../firebaseConfig';
 import { 
@@ -40,11 +42,13 @@ export default function ProjectDetailsScreen({ route, navigation }) {
   const [showInfoModal, setShowInfoModal] = useState(false);
   const [showMembersModal, setShowMembersModal] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [userStatus, setUserStatus] = useState('pending');
   const [searchQuery, setSearchQuery] = useState('');
-  const [availableSubs, setAvailableSubs] = useState([]);
-  const [selectedSubs, setSelectedSubs] = useState([]);
+  const [availableUsers, setAvailableUsers] = useState([]);
+  const [selectedUsers, setSelectedUsers] = useState([]);
   const [searchLoading, setSearchLoading] = useState(false);
+  const [canInvite, setCanInvite] = useState(false);
   const flatListRef = useRef(null);
 
   // Broadcast templates
@@ -94,13 +98,20 @@ export default function ProjectDetailsScreen({ route, navigation }) {
           setProject(projectData);
           navigation.setOptions({ title: projectData.name });
           
+          // Check user status and permissions
           if (userData.role === 'GC' && projectData.createdBy === auth.currentUser.uid) {
             setUserStatus('accepted');
+            setCanInvite(true);
           } else if (userData.role === 'Sub') {
-            const subStatus = projectData.invitedSubs?.find(
+            const subInfo = projectData.invitedSubs?.find(
               sub => sub.id === auth.currentUser.uid
-            )?.status || 'pending';
-            setUserStatus(subStatus);
+            );
+            setUserStatus(subInfo?.status || 'pending');
+            
+            // Check if Sub can invite techs
+            if (subInfo?.status === 'accepted' && projectData.allowSubInvites !== false) {
+              setCanInvite(true);
+            }
           } else if (userData.role === 'Tech') {
             const isAssigned = projectData.assignedTechs?.includes(auth.currentUser.uid);
             setUserStatus(isAssigned ? 'accepted' : 'pending');
@@ -213,6 +224,9 @@ export default function ProjectDetailsScreen({ route, navigation }) {
       
       setUserStatus(accept ? 'accepted' : 'declined');
       Alert.alert('Success', accept ? 'Welcome to the project!' : 'Invitation declined');
+      
+      // Refresh data to update permissions
+      fetchInitialData();
     } catch (error) {
       Alert.alert('Error', 'Failed to update invitation');
     }
@@ -248,7 +262,7 @@ export default function ProjectDetailsScreen({ route, navigation }) {
     }
   };
 
-  const searchSubcontractors = async () => {
+  const searchForInvites = async () => {
     if (searchQuery.length < 2) {
       Alert.alert('Search', 'Please enter at least 2 characters to search');
       return;
@@ -256,108 +270,205 @@ export default function ProjectDetailsScreen({ route, navigation }) {
   
     setSearchLoading(true);
     try {
-      const alreadyInvited = project?.invitedSubs?.map(sub => sub.id) || [];
+      let roleToSearch = 'Sub'; // Default for GCs
+      let searchResults = [];
       
-      const subsQuery = query(
-        collection(db, 'users'),
-        where('role', '==', 'Sub')
-      );
-      
-      const querySnapshot = await getDocs(subsQuery);
-      const subs = [];
-      
-      querySnapshot.forEach((doc) => {
-        const data = doc.data();
-        if (!alreadyInvited.includes(doc.id) &&
-            (data.firstName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-             data.companyName?.toLowerCase().includes(searchQuery.toLowerCase()))) {
-          subs.push({
-            id: doc.id,
-            ...data
-          });
+      if (currentUser?.role === 'Sub') {
+        // Subs can only invite their own techs
+        const techsQuery = query(
+          collection(db, 'users'),
+          where('role', '==', 'Tech'),
+          where('managedBy', '==', auth.currentUser.uid)
+        );
+        
+        const querySnapshot = await getDocs(techsQuery);
+        
+        querySnapshot.forEach((doc) => {
+          const data = doc.data();
+          if (data.firstName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+              data.email?.toLowerCase().includes(searchQuery.toLowerCase())) {
+            searchResults.push({
+              id: doc.id,
+              ...data
+            });
+          }
+        });
+        
+        if (searchResults.length === 0) {
+          Alert.alert('No Results', 'No technicians found in your team matching the search');
         }
-      });
-      
-      setAvailableSubs(subs);
-      
-      if (subs.length === 0) {
-        Alert.alert('No Results', 'No new subcontractors found matching your search');
+      } else {
+        // GCs can search all Subs
+        const alreadyInvited = project?.invitedSubs?.map(sub => sub.id) || [];
+        const subsQuery = query(
+          collection(db, 'users'),
+          where('role', '==', 'Sub')
+        );
+        
+        const querySnapshot = await getDocs(subsQuery);
+        
+        querySnapshot.forEach((doc) => {
+          const data = doc.data();
+          if (!alreadyInvited.includes(doc.id) &&
+              (data.firstName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+               data.companyName?.toLowerCase().includes(searchQuery.toLowerCase()))) {
+            searchResults.push({
+              id: doc.id,
+              ...data
+            });
+          }
+        });
+        
+        if (searchResults.length === 0) {
+          Alert.alert('No Results', 'No new subcontractors found matching your search');
+        }
       }
+      
+      setAvailableUsers(searchResults);
     } catch (error) {
-      Alert.alert('Error', 'Failed to search subcontractors');
+      Alert.alert('Error', 'Failed to search');
       console.error(error);
     }
     setSearchLoading(false);
   };
   
-  const toggleSubSelection = (sub) => {
-    if (selectedSubs.find(s => s.id === sub.id)) {
-      setSelectedSubs(selectedSubs.filter(s => s.id !== sub.id));
+  const toggleUserSelection = (user) => {
+    if (selectedUsers.find(u => u.id === user.id)) {
+      setSelectedUsers(selectedUsers.filter(u => u.id !== user.id));
     } else {
-      setSelectedSubs([...selectedSubs, sub]);
+      setSelectedUsers([...selectedUsers, user]);
     }
   };
   
-  const handleInviteSubcontractors = async () => {
-    if (selectedSubs.length === 0) {
-      Alert.alert('No Selection', 'Please select at least one subcontractor to invite');
+  const handleInviteUsers = async () => {
+    if (selectedUsers.length === 0) {
+      Alert.alert('No Selection', 'Please select at least one person to invite');
       return;
     }
   
     try {
       const projectRef = doc(db, 'projects', projectId);
-      const newInvites = selectedSubs.map(sub => ({
-        id: sub.id,
-        name: sub.firstName,
-        company: sub.companyName || '',
-        email: sub.email,
-        status: 'pending',
-        invitedAt: new Date().toISOString()
-      }));
-  
-      const updatedInvitedSubs = [...(project.invitedSubs || []), ...newInvites];
       
-      await updateDoc(projectRef, {
-        invitedSubs: updatedInvitedSubs,
-        memberCount: updatedInvitedSubs.length + 1
-      });
-  
-      for (const sub of selectedSubs) {
-        await addDoc(collection(db, 'invitations'), {
-          projectId: projectId,
-          projectName: project.name,
-          fromUserId: auth.currentUser.uid,
-          fromUserName: currentUser?.firstName || '',
-          fromCompany: currentUser?.companyName || '',
-          toUserId: sub.id,
-          toUserName: sub.firstName,
+      if (currentUser?.role === 'Sub') {
+        // Sub inviting techs - add to assignedTechs
+        const techIds = selectedUsers.map(u => u.id);
+        const currentTechs = project.assignedTechs || [];
+        
+        await updateDoc(projectRef, {
+          assignedTechs: [...currentTechs, ...techIds]
+        });
+        
+        // Send invitations to techs
+        for (const tech of selectedUsers) {
+          await addDoc(collection(db, 'invitations'), {
+            projectId: projectId,
+            projectName: project.name,
+            inviterId: auth.currentUser.uid,
+            inviterName: currentUser?.firstName || '',
+            inviterCompany: currentUser?.companyName || '',
+            recipientId: tech.id,
+            recipientName: tech.firstName,
+            recipientEmail: tech.email,
+            role: 'Tech',
+            type: 'project_invite',
+            status: 'pending',
+            createdAt: new Date()
+          });
+        }
+        
+        await addDoc(collection(db, 'projects', projectId, 'messages'), {
+          text: `${selectedUsers.length} technician(s) have been invited to the project`,
+          userId: 'system',
+          userName: 'System',
+          timestamp: new Date().toISOString(),
+          type: 'system'
+        });
+      } else {
+        // GC inviting subs
+        const newInvites = selectedUsers.map(sub => ({
+          id: sub.id,
+          name: sub.firstName,
+          company: sub.companyName || '',
+          email: sub.email,
           status: 'pending',
-          createdAt: new Date().toISOString()
+          invitedAt: new Date().toISOString(),
+          canInviteTechs: project.allowSubInvites !== false
+        }));
+        
+        const updatedInvitedSubs = [...(project.invitedSubs || []), ...newInvites];
+        
+        await updateDoc(projectRef, {
+          invitedSubs: updatedInvitedSubs,
+          memberCount: updatedInvitedSubs.length + 1
+        });
+        
+        for (const sub of selectedUsers) {
+          await addDoc(collection(db, 'invitations'), {
+            projectId: projectId,
+            projectName: project.name,
+            inviterId: auth.currentUser.uid,
+            inviterName: currentUser?.firstName || '',
+            inviterCompany: currentUser?.companyName || '',
+            recipientId: sub.id,
+            recipientName: sub.firstName,
+            recipientEmail: sub.email,
+            role: 'Sub',
+            type: 'project_invite',
+            status: 'pending',
+            createdAt: new Date()
+          });
+        }
+        
+        await addDoc(collection(db, 'projects', projectId, 'messages'), {
+          text: `${selectedUsers.length} subcontractor(s) have been invited to the project`,
+          userId: 'system',
+          userName: 'System',
+          timestamp: new Date().toISOString(),
+          type: 'system'
         });
       }
-  
-      await addDoc(collection(db, 'projects', projectId, 'messages'), {
-        text: `${selectedSubs.length} new subcontractor(s) have been invited to the project`,
-        userId: 'system',
-        userName: 'System',
-        timestamp: new Date().toISOString(),
-        type: 'system'
-      });
-  
+      
       Alert.alert(
         'Success!',
-        `${selectedSubs.length} subcontractor(s) invited successfully!`,
+        `${selectedUsers.length} ${currentUser?.role === 'Sub' ? 'technician(s)' : 'subcontractor(s)'} invited successfully!`,
         [{ text: 'OK', onPress: () => {
           setShowInviteModal(false);
-          setSelectedSubs([]);
-          setAvailableSubs([]);
+          setSelectedUsers([]);
+          setAvailableUsers([]);
           setSearchQuery('');
           fetchInitialData();
         }}]
       );
     } catch (error) {
-      Alert.alert('Error', 'Failed to invite subcontractors');
+      Alert.alert('Error', 'Failed to send invitations');
       console.error(error);
+    }
+  };
+
+  const updateProjectSettings = async (setting, value) => {
+    try {
+      await updateDoc(doc(db, 'projects', projectId), {
+        [setting]: value
+      });
+      
+      // Update local state
+      setProject({ ...project, [setting]: value });
+      
+      // Update Sub permissions if needed
+      if (setting === 'allowSubInvites') {
+        const updatedSubs = project.invitedSubs?.map(sub => ({
+          ...sub,
+          canInviteTechs: value
+        }));
+        
+        await updateDoc(doc(db, 'projects', projectId), {
+          invitedSubs: updatedSubs
+        });
+      }
+      
+      fetchInitialData(); // Refresh all data
+    } catch (error) {
+      Alert.alert('Error', 'Failed to update settings');
     }
   };
 
@@ -488,6 +599,14 @@ export default function ProjectDetailsScreen({ route, navigation }) {
           </Text>
         </View>
         
+        {project?.allowSubInvites && (
+          <View style={styles.permissionNote}>
+            <Text style={styles.permissionNoteText}>
+              ✓ You'll be able to invite your technicians to this project
+            </Text>
+          </View>
+        )}
+        
         <View style={styles.invitationActions}>
           <TouchableOpacity 
             style={[styles.invitationButton, styles.acceptButton]}
@@ -537,28 +656,43 @@ export default function ProjectDetailsScreen({ route, navigation }) {
             <Text style={styles.projectLocation}>{project?.city}, {project?.state}</Text>
           </View>
           <View style={styles.headerActions}>
-            {currentUser?.role === 'GC' && (
-              <>
-                <TouchableOpacity 
-                  style={styles.headerButton}
-                  onPress={() => setShowInviteModal(true)}
-                >
-                  <Text style={styles.headerButtonIcon}>➕</Text>
-                </TouchableOpacity>
-                <TouchableOpacity 
-                  style={styles.headerButton}
-                  onPress={() => setShowBroadcastModal(true)}
-                >
-                  <Text style={styles.headerButtonIcon}>📢</Text>
-                </TouchableOpacity>
-              </>
+            {/* Invite button for GC or authorized Subs */}
+            {canInvite && (
+              <TouchableOpacity 
+                style={styles.headerButton}
+                onPress={() => setShowInviteModal(true)}
+              >
+                <Text style={styles.headerButtonIcon}>➕</Text>
+              </TouchableOpacity>
             )}
+            
+            {/* Broadcast for GC only */}
+            {currentUser?.role === 'GC' && project?.createdBy === auth.currentUser.uid && (
+              <TouchableOpacity 
+                style={styles.headerButton}
+                onPress={() => setShowBroadcastModal(false)}
+              >
+                <Text style={styles.headerButtonIcon}>📢</Text>
+              </TouchableOpacity>
+            )}
+            
+            {/* Settings for GC only */}
+            {currentUser?.role === 'GC' && project?.createdBy === auth.currentUser.uid && (
+              <TouchableOpacity 
+                style={styles.headerButton}
+                onPress={() => setShowSettingsModal(true)}
+              >
+                <Text style={styles.headerButtonIcon}>⚙️</Text>
+              </TouchableOpacity>
+            )}
+            
             <TouchableOpacity 
               style={styles.headerButton}
               onPress={() => setShowMembersModal(true)}
             >
               <Text style={styles.headerButtonIcon}>👥</Text>
             </TouchableOpacity>
+            
             <TouchableOpacity 
               style={styles.headerButton}
               onPress={() => setShowInfoModal(true)}
@@ -604,6 +738,55 @@ export default function ProjectDetailsScreen({ route, navigation }) {
           <Text style={styles.sendButtonText}>Send</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Settings Modal (NEW) */}
+      <Modal
+        visible={showSettingsModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowSettingsModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Project Settings</Text>
+            
+            <View style={styles.settingRow}>
+              <View style={styles.settingText}>
+                <Text style={styles.settingLabel}>Allow Subs to invite their teams</Text>
+                <Text style={styles.settingDescription}>
+                  Subcontractors can add their technicians to this project
+                </Text>
+              </View>
+              <Switch
+                value={project?.allowSubInvites !== false}
+                onValueChange={(value) => updateProjectSettings('allowSubInvites', value)}
+                trackColor={{ false: '#ddd', true: '#4ECDC4' }}
+              />
+            </View>
+            
+            <View style={styles.settingRow}>
+              <View style={styles.settingText}>
+                <Text style={styles.settingLabel}>Allow Subs to create events</Text>
+                <Text style={styles.settingDescription}>
+                  Subcontractors can schedule team events on the calendar
+                </Text>
+              </View>
+              <Switch
+                value={project?.allowSubEvents !== false}
+                onValueChange={(value) => updateProjectSettings('allowSubEvents', value)}
+                trackColor={{ false: '#ddd', true: '#4ECDC4' }}
+              />
+            </View>
+            
+            <TouchableOpacity 
+              style={styles.modalCloseButton}
+              onPress={() => setShowSettingsModal(false)}
+            >
+              <Text style={styles.modalCloseText}>Done</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {/* Broadcast Modal */}
       <Modal
@@ -676,6 +859,7 @@ export default function ProjectDetailsScreen({ route, navigation }) {
                     </Text>
                     <Text style={styles.memberRole}>
                       Subcontractor - {sub.status}
+                      {sub.canInviteTechs && ' (Can invite techs)'}
                     </Text>
                   </View>
                 </View>
@@ -741,7 +925,7 @@ export default function ProjectDetailsScreen({ route, navigation }) {
         </View>
       </Modal>
 
-      {/* Invite Subcontractors Modal */}
+      {/* Invite Modal (Updated) */}
       <Modal
         visible={showInviteModal}
         animationType="slide"
@@ -750,19 +934,23 @@ export default function ProjectDetailsScreen({ route, navigation }) {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Invite Subcontractors</Text>
+            <Text style={styles.modalTitle}>
+              {currentUser?.role === 'Sub' ? 'Invite Technicians' : 'Invite Subcontractors'}
+            </Text>
             
             <View style={styles.searchContainer}>
               <TextInput
                 style={styles.searchInput}
-                placeholder="Search by name or company..."
+                placeholder={currentUser?.role === 'Sub' ? 
+                  "Search your technicians..." : 
+                  "Search by name or company..."}
                 value={searchQuery}
                 onChangeText={setSearchQuery}
-                onSubmitEditing={searchSubcontractors}
+                onSubmitEditing={searchForInvites}
               />
               <TouchableOpacity 
                 style={styles.searchButton}
-                onPress={searchSubcontractors}
+                onPress={searchForInvites}
                 disabled={searchLoading}
               >
                 <Text style={styles.searchButtonText}>
@@ -771,30 +959,30 @@ export default function ProjectDetailsScreen({ route, navigation }) {
               </TouchableOpacity>
             </View>
 
-            {selectedSubs.length > 0 && (
+            {selectedUsers.length > 0 && (
               <Text style={styles.selectedCount}>
-                {selectedSubs.length} selected
+                {selectedUsers.length} selected
               </Text>
             )}
             
             <ScrollView style={styles.searchResults}>
-              {availableSubs.map((sub) => {
-                const isSelected = selectedSubs.find(s => s.id === sub.id);
+              {availableUsers.map((user) => {
+                const isSelected = selectedUsers.find(u => u.id === user.id);
                 return (
                   <TouchableOpacity
-                    key={sub.id}
+                    key={user.id}
                     style={[
                       styles.subItem,
                       isSelected && styles.subItemSelected
                     ]}
-                    onPress={() => toggleSubSelection(sub)}
+                    onPress={() => toggleUserSelection(user)}
                   >
                     <View style={styles.subInfo}>
-                      <Text style={styles.subName}>{sub.firstName}</Text>
-                      {sub.companyName && (
-                        <Text style={styles.subCompany}>{sub.companyName}</Text>
+                      <Text style={styles.subName}>{user.firstName}</Text>
+                      {user.companyName && (
+                        <Text style={styles.subCompany}>{user.companyName}</Text>
                       )}
-                      <Text style={styles.subEmail}>{sub.email}</Text>
+                      <Text style={styles.subEmail}>{user.email}</Text>
                     </View>
                     <View style={[
                       styles.checkbox,
@@ -806,9 +994,11 @@ export default function ProjectDetailsScreen({ route, navigation }) {
                 );
               })}
               
-              {availableSubs.length === 0 && searchQuery.length > 0 && (
+              {availableUsers.length === 0 && searchQuery.length > 0 && (
                 <Text style={styles.noResults}>
-                  Search for subcontractors to invite
+                  {currentUser?.role === 'Sub' ? 
+                    'No technicians found in your team' : 
+                    'Search for subcontractors to invite'}
                 </Text>
               )}
             </ScrollView>
@@ -818,8 +1008,8 @@ export default function ProjectDetailsScreen({ route, navigation }) {
                 style={styles.cancelButton}
                 onPress={() => {
                   setShowInviteModal(false);
-                  setSelectedSubs([]);
-                  setAvailableSubs([]);
+                  setSelectedUsers([]);
+                  setAvailableUsers([]);
                   setSearchQuery('');
                 }}
               >
@@ -827,12 +1017,12 @@ export default function ProjectDetailsScreen({ route, navigation }) {
               </TouchableOpacity>
               
               <TouchableOpacity 
-                style={[styles.inviteButton, selectedSubs.length === 0 && styles.inviteButtonDisabled]}
-                onPress={handleInviteSubcontractors}
-                disabled={selectedSubs.length === 0}
+                style={[styles.inviteButton, selectedUsers.length === 0 && styles.inviteButtonDisabled]}
+                onPress={handleInviteUsers}
+                disabled={selectedUsers.length === 0}
               >
                 <Text style={styles.inviteButtonText}>
-                  Invite ({selectedSubs.length})
+                  Invite ({selectedUsers.length})
                 </Text>
               </TouchableOpacity>
             </View>
@@ -916,6 +1106,38 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 14,
     color: '#333',
+  },
+  permissionNote: {
+    backgroundColor: '#E8F5E9',
+    padding: 10,
+    borderRadius: 8,
+    marginTop: 10,
+  },
+  permissionNoteText: {
+    color: '#2E7D32',
+    fontSize: 14,
+  },
+  settingRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  settingText: {
+    flex: 1,
+    marginRight: 10,
+  },
+  settingLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 4,
+  },
+  settingDescription: {
+    fontSize: 13,
+    color: '#666',
   },
   messagesList: {
     padding: 15,
@@ -1005,32 +1227,32 @@ const styles = StyleSheet.create({
   inputContainer: {
     flexDirection: 'row',
     padding: 10,
-    paddingBottom: Platform.OS === 'ios' ? 25 : 10,  // ADD EXTRA BOTTOM PADDING FOR iPHONE
+    paddingBottom: Platform.OS === 'ios' ? 25 : 10,
     backgroundColor: 'white',
     borderTopWidth: 1,
     borderTopColor: '#e0e0e0',
-    alignItems: 'center',                            // ADD THIS TO CENTER ITEMS
+    alignItems: 'center',
   },
-  
   textInput: {
     flex: 1,
     borderWidth: 1,
     borderColor: '#ddd',
     borderRadius: 20,
     paddingHorizontal: 15,
-    paddingVertical: Platform.OS === 'ios' ? 12 : 10,  // INCREASED PADDING
-    paddingTop: Platform.OS === 'ios' ? 12 : 10,      // EXPLICIT TOP PADDING
+    paddingVertical: Platform.OS === 'ios' ? 12 : 10,
+    paddingTop: Platform.OS === 'ios' ? 12 : 10,
     marginRight: 10,
-    minHeight: 40,                                     // ADD MINIMUM HEIGHT
+    minHeight: 40,
     maxHeight: 100,
     fontSize: 16,
-    lineHeight: Platform.OS === 'ios' ? 20 : 18,      // ADD LINE HEIGHT
-    textAlignVertical: 'center',                       // CENTER TEXT ON ANDROID
+    lineHeight: Platform.OS === 'ios' ? 20 : 18,
+    textAlignVertical: 'center',
   },
   sendButton: {
     backgroundColor: '#007AFF',
     borderRadius: 20,
     paddingHorizontal: 20,
+    paddingVertical: 10,
     justifyContent: 'center',
   },
   sendButtonDisabled: {
@@ -1139,6 +1361,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 20,
     paddingTop: 20,
     paddingBottom: 30,
+    paddingHorizontal: 20,
     maxHeight: '80%',
   },
   modalTitle: {
@@ -1236,7 +1459,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#333',
   },
-  // Invite modal styles
   searchContainer: {
     flexDirection: 'row',
     paddingHorizontal: 20,
