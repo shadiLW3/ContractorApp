@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { canInviteToProject } from '../../utils/permissions';
+import { Image } from 'react-native';
+import { pickImage, takePhoto, uploadImage } from '../../utils/fileHelpers';
 import {
   View,
   Text,
@@ -50,6 +52,7 @@ export default function ProjectDetailsScreen({ route, navigation }) {
   const [searchLoading, setSearchLoading] = useState(false);
   const [canInvite, setCanInvite] = useState(false);
   const flatListRef = useRef(null);
+  const [uploading, setUploading] = useState(false);
 
   // Broadcast templates
   const broadcastTemplates = {
@@ -189,12 +192,12 @@ export default function ProjectDetailsScreen({ route, navigation }) {
     });
   };
 
-  const sendMessage = async (text = newMessage, type = 'text', isBroadcast = false) => {
-    if (!text.trim() && type === 'text') return;
+  const sendMessage = async (text = newMessage, type = 'text', isBroadcast = false, imageUrl = null) => {
+    if (!text.trim() && type === 'text' && !imageUrl) return;
     
     setSending(true);
     try {
-      await addDoc(collection(db, 'projects', projectId, 'messages'), {
+      const messageData = {
         text: text.trim(),
         userId: auth.currentUser.uid,
         userName: currentUser?.firstName || 'User',
@@ -203,7 +206,14 @@ export default function ProjectDetailsScreen({ route, navigation }) {
         type: type,
         isBroadcast: isBroadcast,
         isPinned: false
-      });
+      };
+  
+      if (imageUrl) {
+        messageData.imageUrl = imageUrl;
+        messageData.type = 'image';
+      }
+  
+      await addDoc(collection(db, 'projects', projectId, 'messages'), messageData);
       
       setNewMessage('');
       
@@ -234,6 +244,34 @@ export default function ProjectDetailsScreen({ route, navigation }) {
       'plain-text',
       template.text
     );
+  };
+
+  const handlePickImage = async () => {
+    const image = await pickImage();
+    if (image) {
+      setUploading(true);
+      try {
+        const imageUrl = await uploadImage(image.uri, projectId);
+        await sendMessage('📷 Photo', 'image', false, imageUrl);
+      } catch (error) {
+        Alert.alert('Error', 'Failed to upload image');
+      }
+      setUploading(false);
+    }
+  };
+  
+  const handleTakePhoto = async () => {
+    const image = await takePhoto();
+    if (image) {
+      setUploading(true);
+      try {
+        const imageUrl = await uploadImage(image.uri, projectId);
+        await sendMessage('📸 Photo', 'image', false, imageUrl);
+      } catch (error) {
+        Alert.alert('Error', 'Failed to upload photo');
+      }
+      setUploading(false);
+    }
   };
 
   const handleInvitation = async (accept) => {
@@ -553,6 +591,66 @@ export default function ProjectDetailsScreen({ route, navigation }) {
       );
     }
 
+    // Handle image messages
+    if (item.imageUrl) {
+      return (
+        <TouchableOpacity
+          onLongPress={() => {
+            if (currentUser?.role === 'GC' || currentUser?.role === 'Sub') {
+              Alert.alert(
+                'Message Options',
+                'What would you like to do?',
+                [
+                  { 
+                    text: item.isPinned ? 'Unpin Message' : 'Pin Message', 
+                    onPress: () => togglePinMessage(item.id, item.isPinned)
+                  },
+                  { text: 'Cancel', style: 'cancel' }
+                ]
+              );
+            }
+          }}
+          style={[
+            styles.messageContainer,
+            isOwnMessage && styles.ownMessageContainer
+          ]}
+        >
+          <View style={[
+            styles.messageBubble,
+            isOwnMessage && styles.ownMessageBubble
+          ]}>
+            {!isOwnMessage && (
+              <View style={styles.messageHeader}>
+                <Text style={styles.userName}>{item.userName}</Text>
+                <View style={[styles.roleBadge, { backgroundColor: getRoleColor(item.userRole) }]}>
+                  <Text style={styles.roleBadgeText}>{item.userRole}</Text>
+                </View>
+              </View>
+            )}
+            <Image 
+              source={{ uri: item.imageUrl }} 
+              style={styles.messageImage}
+              resizeMode="cover"
+            />
+            {item.text && (
+              <Text style={[
+                styles.messageText,
+                isOwnMessage && styles.ownMessageText
+              ]}>
+                {item.text}
+              </Text>
+            )}
+            <Text style={[
+              styles.messageTime,
+              isOwnMessage && styles.ownMessageTime
+            ]}>
+              {formatTime(item.timestamp)}
+            </Text>
+          </View>
+        </TouchableOpacity>
+      );
+    }
+
     return (
       <TouchableOpacity
         onLongPress={() => {
@@ -707,7 +805,7 @@ export default function ProjectDetailsScreen({ route, navigation }) {
             {currentUser?.role === 'GC' && project?.createdBy === auth.currentUser.uid && (
               <TouchableOpacity 
                 style={styles.headerButton}
-                onPress={() => setShowBroadcastModal(false)}
+                onPress={() => setShowBroadcastModal(true)}
               >
                 <Text style={styles.headerButtonIcon}>📢</Text>
               </TouchableOpacity>
@@ -722,6 +820,16 @@ export default function ProjectDetailsScreen({ route, navigation }) {
                 <Text style={styles.headerButtonIcon}>⚙️</Text>
               </TouchableOpacity>
             )}
+              {/* Tasks button - available to all roles */}
+  <TouchableOpacity 
+    style={styles.headerButton}
+    onPress={() => navigation.navigate('TaskList', { 
+      projectId: projectId,
+      projectName: project?.name 
+    })}
+  >
+    <Text style={styles.headerButtonIcon}>📋</Text>
+  </TouchableOpacity>
             
             <TouchableOpacity 
               style={styles.headerButton}
@@ -759,20 +867,40 @@ export default function ProjectDetailsScreen({ route, navigation }) {
       />
 
       <View style={styles.inputContainer}>
+        <TouchableOpacity 
+          style={styles.attachButton}
+          onPress={handlePickImage}
+          disabled={uploading}
+        >
+          <Text style={styles.attachButtonText}>🖼️</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          style={styles.attachButton}
+          onPress={handleTakePhoto}
+          disabled={uploading}
+        >
+          <Text style={styles.attachButtonText}>📸</Text>
+        </TouchableOpacity>
+        
         <TextInput
           style={styles.textInput}
           value={newMessage}
           onChangeText={setNewMessage}
-          placeholder="Type a message..."
+          placeholder={uploading ? "Uploading..." : "Type a message..."}
           multiline
           maxHeight={100}
+          editable={!uploading}
         />
+        
         <TouchableOpacity 
-          style={[styles.sendButton, sending && styles.sendButtonDisabled]}
+          style={[styles.sendButton, (sending || uploading) && styles.sendButtonDisabled]}
           onPress={() => sendMessage()}
-          disabled={sending || !newMessage.trim()}
+          disabled={sending || !newMessage.trim() || uploading}
         >
-          <Text style={styles.sendButtonText}>Send</Text>
+          <Text style={styles.sendButtonText}>
+            {uploading ? '...' : 'Send'}
+          </Text>
         </TouchableOpacity>
       </View>
 
@@ -1248,6 +1376,12 @@ const styles = StyleSheet.create({
   ownMessageTime: {
     color: 'rgba(255,255,255,0.8)',
   },
+  messageImage: {
+    width: 200,
+    height: 200,
+    borderRadius: 8,
+    marginVertical: 8,
+  },
   systemMessage: {
     alignItems: 'center',
     marginVertical: 10,
@@ -1269,6 +1403,12 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#e0e0e0',
     alignItems: 'center',
+  },
+  attachButton: {
+    padding: 10,
+  },
+  attachButtonText: {
+    fontSize: 24,
   },
   textInput: {
     flex: 1,

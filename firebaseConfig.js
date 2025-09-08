@@ -6,6 +6,7 @@ import {
   persistentMultipleTabManager,
   CACHE_SIZE_UNLIMITED
 } from 'firebase/firestore';
+import { getStorage } from 'firebase/storage';
 import ReactNativeAsyncStorage from '@react-native-async-storage/async-storage';
 
 const firebaseConfig = {
@@ -19,6 +20,7 @@ const firebaseConfig = {
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
+export const storage = getStorage(app);
 
 // Initialize Auth with AsyncStorage for persistence (keeping your existing setup)
 export const auth = initializeAuth(app, {

@@ -9,6 +9,8 @@ import { View, Text, ActivityIndicator, StyleSheet, TouchableOpacity } from 'rea
 import { onSnapshot } from 'firebase/firestore';
 import Toast from 'react-native-toast-message';
 import CalendarScreen from './screens/CalendarScreen';
+import TaskListScreen from './screens/projects/TaskListScreen';
+import TaskDetailsScreen from './screens/projects/TaskDetailsScreen';
 
 // Import all screens
 import LoginScreen from './screens/auth/LoginScreen';
@@ -176,15 +178,25 @@ export default function App() {
                   options={{ title: 'Project' }}
                 />
                 <Stack.Screen 
+                  name="TaskList" 
+                  component={TaskListScreen}
+                  options={{ title: 'Tasks' }}
+                />
+                <Stack.Screen 
+                  name="TaskDetails" 
+                  component={TaskDetailsScreen}
+                  options={{ title: 'Task Details' }}
+                />
+                <Stack.Screen 
                   name="Network" 
                   component={NetworkScreen}
                   options={{ title: 'My Network' }}
                 />
                 <Stack.Screen 
-  name="Calendar" 
-  component={CalendarScreen}
-  options={{ title: 'Schedule' }}
-/>
+                  name="Calendar" 
+                  component={CalendarScreen}
+                  options={{ title: 'Schedule' }}
+                />
               </>
             )}
             
@@ -209,15 +221,25 @@ export default function App() {
                   options={{ title: 'Project' }}
                 />
                 <Stack.Screen 
+                  name="TaskList" 
+                  component={TaskListScreen}
+                  options={{ title: 'Tasks' }}
+                />
+                <Stack.Screen 
+                  name="TaskDetails" 
+                  component={TaskDetailsScreen}
+                  options={{ title: 'Task Details' }}
+                />
+                <Stack.Screen 
                   name="TeamManagement" 
                   component={TeamManagementScreen}
                   options={{ title: 'Team Management' }}
                 />
                 <Stack.Screen 
-  name="Calendar" 
-  component={CalendarScreen}
-  options={{ title: 'Schedule' }}
-/>
+                  name="Calendar" 
+                  component={CalendarScreen}
+                  options={{ title: 'Schedule' }}
+                />
               </>
             )}
             
@@ -242,10 +264,20 @@ export default function App() {
                   options={{ title: 'Project' }}
                 />
                 <Stack.Screen 
-  name="Calendar" 
-  component={CalendarScreen}
-  options={{ title: 'Schedule' }}
-/>
+                  name="TaskList" 
+                  component={TaskListScreen}
+                  options={{ title: 'Tasks' }}
+                />
+                <Stack.Screen 
+                  name="TaskDetails" 
+                  component={TaskDetailsScreen}
+                  options={{ title: 'Task Details' }}
+                />
+                <Stack.Screen 
+                  name="Calendar" 
+                  component={CalendarScreen}
+                  options={{ title: 'Schedule' }}
+                />
               </>
             )}
             
